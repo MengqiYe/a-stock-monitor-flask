@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A股即时监视系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            background: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab:hover {
+            background: #f0f0f0;
+        }
+        
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .content {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .stock-code {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .stock-name {
+            font-weight: 500;
+        }
+        
+        .change-positive {
+            color: #f5222d;
+            font-weight: 600;
+        }
+        
+        .change-negative {
+            color: #52c41a;
+            font-weight: 600;
+        }
+        
+        .strategy-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-right: 8px;
+            background: #f0f0f0;
+        }
+        
+        .strategy-momentum {
+            background: #fff1f0;
+            color: #f5222d;
+        }
+        
+        .strategy-mean_reversion {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+        
+        .strategy-volume_price {
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+        
+        .strategy-technical {
+            background: #fff7e6;
+            color: #fa8c16;
+        }
+        
+        .strategy-breakout {
+            background: #f9f0ff;
+            color: #722ed1;
+        }
+        
+        .strategy-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .strategy-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .strategy-card p {
+            color: #666;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: background 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #5568d3;
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-box input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .refresh-btn {
+            float: right;
+            background: #52c41a;
+        }
+        
+        .refresh-btn:hover {
+            background: #389e0d;
+        }
+        
+        .timestamp {
+            font-size: 0.85rem;
+            color: #999;
+            margin-top: 10px;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+        
+        .hot-stocks {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .hot-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .hot-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .hot-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .hot-item:last-child {
+            border-bottom: none;
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                font-size: 0.85rem;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>A股即时监视系统</h1>
+            <p>实时行情监控 · 智能选股策略 · 数据驱动决策</p>
+        </header>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <h3>监控股票数</h3>
+                <div class="value" id="total-stocks">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>上涨股票数</h3>
+                <div class="value change-positive" id="up-stocks">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>下跌股票数</h3>
+                <div class="value change-negative" id="down-stocks">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>更新时间</h3>
+                <div class="value" id="update-time" style="font-size: 1.2rem;">-</div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('realtime')">实时行情</button>
+            <button class="tab" onclick="switchTab('strategies')">选股策略</button>
+            <button class="tab" onclick="switchTab('hot')">热门股票</button>
+            <button class="tab" onclick="switchTab('search')">搜索</button>
+        </div>
+        
+        <div class="content" id="content">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+    
+    <script>
+        // 当前标签页
+        let currentTab = 'realtime';
+        
+        // 缓存数据
+        let realtimeData = [];
+        let strategiesData = {};
+        
+        // 切换标签页
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // 更新标签页样式
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // 加载内容
+            loadContent(tab);
+        }
+        
+        // 加载内容
+        async function loadContent(tab) {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                switch(tab) {
+                    case 'realtime':
+                        await loadRealtimeData();
+                        break;
+                    case 'strategies':
+                        await loadStrategiesData();
+                        break;
+                    case 'hot':
+                        await loadHotStocks();
+                        break;
+                    case 'search':
+                        showSearchUI();
+                        break;
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载实时数据
+        async function loadRealtimeData() {
+            const response = await fetch('/api/realtime');
+            const result = await response.json();
+            
+            if (result.success) {
+                realtimeData = result.data;
+                updateStats(realtimeData);
+                renderRealtimeTable(realtimeData);
+            } else {
+                throw new Error(result.message);
+            }
+        }
+        
+        // 更新统计数据
+        function updateStats(data) {
+            document.getElementById('total-stocks').textContent = data.length;
+            
+            const upCount = data.filter(s => s.change_pct > 0).length;
+            const downCount = data.filter(s => s.change_pct < 0).length;
+            
+            document.getElementById('up-stocks').textContent = upCount;
+            document.getElementById('down-stocks').textContent = downCount;
+            
+            const now = new Date();
+            document.getElementById('update-time').textContent = 
+                now.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+        }
+        
+        // 渲染实时行情表格
+        function renderRealtimeTable(data) {
+            const content = document.getElementById('content');
+            
+            // 只显示前100条
+            const displayData = data.slice(0, 100);
+            
+            let html = `
+                <button class="btn refresh-btn" onclick="refreshRealtime()">刷新数据</button>
+                <h2 style="margin-bottom: 10px;">实时行情 (显示前100条)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>最新价</th>
+                            <th>涨跌幅</th>
+                            <th>涨跌额</th>
+                            <th>成交量</th>
+                            <th>成交额</th>
+                            <th>换手率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            displayData.forEach(stock => {
+                const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                const changeSymbol = stock.change_pct >= 0 ? '+' : '';
+                
+                html += `
+                    <tr>
+                        <td class="stock-code">${stock.code || '-'}</td>
+                        <td class="stock-name">${stock.name || '-'}</td>
+                        <td>${stock.price ? stock.price.toFixed(2) : '-'}</td>
+                        <td class="${changeClass}">${changeSymbol}${stock.change_pct ? stock.change_pct.toFixed(2) : '-'}%</td>
+                        <td class="${changeClass}">${changeSymbol}${stock.change ? stock.change.toFixed(2) : '-'}</td>
+                        <td>${formatVolume(stock.volume)}</td>
+                        <td>${formatAmount(stock.amount)}</td>
+                        <td>${stock.turnover_rate ? stock.turnover_rate.toFixed(2) : '-'}%</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+                <div class="timestamp">数据更新时间: ${new Date().toLocaleString('zh-CN')}</div>
+            `;
+            
+            content.innerHTML = html;
+        }
+        
+        // 加载策略数据
+        async function loadStrategiesData() {
+            const content = document.getElementById('content');
+            
+            // 获取策略列表
+            const strategiesRes = await fetch('/api/strategies');
+            const strategiesResult = await strategiesRes.json();
+            
+            if (!strategiesResult.success) {
+                throw new Error(strategiesResult.message);
+            }
+            
+            let html = `
+                <button class="btn refresh-btn" onclick="runAllStrategies()">运行所有策略</button>
+                <h2 style="margin-bottom: 20px;">选股策略</h2>
+            `;
+            
+            // 显示策略卡片
+            strategiesResult.data.forEach(strategy => {
+                html += `
+                    <div class="strategy-card">
+                        <h3>${strategy.name} <button class="btn" onclick="runStrategy('${strategy.id}')" style="float: right;">运行策略</button></h3>
+                        <p>${strategy.description}</p>
+                        <div id="strategy-${strategy.id}-results" style="margin-top: 15px;"></div>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+        }
+        
+        // 运行策略
+        async function runStrategy(strategyId) {
+            const resultsDiv = document.getElementById(`strategy-${strategyId}-results`);
+            resultsDiv.innerHTML = '<div class="loading">正在运行策略...</div>';
+            
+            try {
+                const response = await fetch(`/api/strategy/${strategyId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderStrategyResults(result.data, resultsDiv);
+                } else {
+                    resultsDiv.innerHTML = `<div class="no-data">策略执行失败: ${result.message}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="no-data">策略执行失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染策略结果
+        function renderStrategyResults(data, container) {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="no-data">未找到符合条件的股票</div>';
+                return;
+            }
+            
+            let html = `
+                <table style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>最新价</th>
+                            <th>涨跌幅</th>
+                            <th>推荐理由</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(stock => {
+                const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                const changeSymbol = stock.change_pct >= 0 ? '+' : '';
+                
+                html += `
+                    <tr>
+                        <td class="stock-code">${stock.code || '-'}</td>
+                        <td class="stock-name">${stock.name || '-'}</td>
+                        <td>${stock.price ? stock.price.toFixed(2) : '-'}</td>
+                        <td class="${changeClass}">${changeSymbol}${stock.change_pct ? stock.change_pct.toFixed(2) : '-'}%</td>
+                        <td>${stock.reason || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        // 运行所有策略
+        async function runAllStrategies() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">正在运行所有策略...</div>';
+            
+            try {
+                const response = await fetch('/api/strategies/all');
+                const result = await response.json();
+                
+                if (result.success) {
+                    strategiesData = result.data;
+                    renderAllStrategiesResults(strategiesData);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">运行失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染所有策略结果
+        function renderAllStrategiesResults(data) {
+            const content = document.getElementById('content');
+            
+            let html = `
+                <button class="btn refresh-btn" onclick="runAllStrategies()">重新运行</button>
+                <h2 style="margin-bottom: 20px;">所有策略结果</h2>
+            `;
+            
+            const strategyNames = {
+                'momentum': '动量策略',
+                'mean_reversion': '均值回归策略',
+                'volume_price': '量价策略',
+                'technical': '技术指标策略',
+                'breakout': '突破策略'
+            };
+            
+            Object.keys(data).forEach(strategyId => {
+                html += `
+                    <div class="strategy-card">
+                        <h3>${strategyNames[strategyId] || strategyId}</h3>
+                        <div id="all-strategy-${strategyId}"></div>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+            
+            // 渲染每个策略的结果
+            Object.keys(data).forEach(strategyId => {
+                const container = document.getElementById(`all-strategy-${strategyId}`);
+                renderStrategyResults(data[strategyId], container);
+            });
+        }
+        
+        // 加载热门股票
+        async function loadHotStocks() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch('/api/hot?top=10');
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderHotStocks(result.data);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染热门股票
+        function renderHotStocks(data) {
+            const content = document.getElementById('content');
+            
+            const sectionNames = {
+                'gainers': '涨幅榜',
+                'losers': '跌幅榜',
+                'volume_top': '成交额榜',
+                'turnover_top': '换手率榜'
+            };
+            
+            let html = `
+                <button class="btn refresh-btn" onclick="loadHotStocks()">刷新数据</button>
+                <h2 style="margin-bottom: 20px;">热门股票排行</h2>
+                <div class="hot-stocks">
+            `;
+            
+            Object.keys(data).forEach(key => {
+                html += `
+                    <div class="hot-section">
+                        <h3>${sectionNames[key] || key}</h3>
+                `;
+                
+                data[key].forEach(stock => {
+                    const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                    const changeSymbol = stock.change_pct >= 0 ? '+' : '';
+                    
+                    html += `
+                        <div class="hot-item">
+                            <div>
+                                <span class="stock-code">${stock.code}</span>
+                                <span class="stock-name" style="margin-left: 8px;">${stock.name}</span>
+                            </div>
+                            <span class="${changeClass}">${changeSymbol}${stock.change_pct ? stock.change_pct.toFixed(2) : '-'}%</span>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+            });
+            
+            html += '</div>';
+            content.innerHTML = html;
+        }
+        
+        // 显示搜索UI
+        function showSearchUI() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <h2 style="margin-bottom: 20px;">搜索股票</h2>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="输入股票代码或名称..." onkeypress="handleSearchKeyPress(event)">
+                    <button class="btn" onclick="searchStocks()">搜索</button>
+                </div>
+                <div id="search-results"></div>
+            `;
+        }
+        
+        // 处理搜索回车键
+        function handleSearchKeyPress(event) {
+            if (event.key === 'Enter') {
+                searchStocks();
+            }
+        }
+        
+        // 搜索股票
+        async function searchStocks() {
+            const keyword = document.getElementById('search-input').value.trim();
+            const resultsDiv = document.getElementById('search-results');
+            
+            if (!keyword) {
+                resultsDiv.innerHTML = '<div class="no-data">请输入搜索关键词</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">搜索中...</div>';
+            
+            try {
+                const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.data.length === 0) {
+                        resultsDiv.innerHTML = '<div class="no-data">未找到匹配的股票</div>';
+                    } else {
+                        renderSearchResults(result.data, resultsDiv);
+                    }
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="no-data">搜索失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染搜索结果
+        function renderSearchResults(data, container) {
+            let html = `
+                <h3 style="margin-bottom: 10px;">找到 ${data.length} 只股票</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>最新价</th>
+                            <th>涨跌幅</th>
+                            <th>成交量</th>
+                            <th>成交额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(stock => {
+                const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                const changeSymbol = stock.change_pct >= 0 ? '+' : '';
+                
+                html += `
+                    <tr>
+                        <td class="stock-code">${stock.code || '-'}</td>
+                        <td class="stock-name">${stock.name || '-'}</td>
+                        <td>${stock.price ? stock.price.toFixed(2) : '-'}</td>
+                        <td class="${changeClass}">${changeSymbol}${stock.change_pct ? stock.change_pct.toFixed(2) : '-'}%</td>
+                        <td>${formatVolume(stock.volume)}</td>
+                        <td>${formatAmount(stock.amount)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        // 刷新实时数据
+        async function refreshRealtime() {
+            const btn = document.querySelector('.refresh-btn');
+            btn.disabled = true;
+            btn.textContent = '刷新中...';
+            
+            try {
+                await loadRealtimeData();
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '刷新数据';
+            }
+        }
+        
+        // 格式化成交量
+        function formatVolume(volume) {
+            if (!volume) return '-';
+            
+            if (volume >= 100000000) {
+                return (volume / 100000000).toFixed(2) + '亿';
+            } else if (volume >= 10000) {
+                return (volume / 10000).toFixed(2) + '万';
+            }
+            return volume.toString();
+        }
+        
+        // 格式化成交额
+        function formatAmount(amount) {
+            if (!amount) return '-';
+            
+            if (amount >= 100000000) {
+                return (amount / 100000000).toFixed(2) + '亿';
+            } else if (amount >= 10000) {
+                return (amount / 10000).toFixed(2) + '万';
+            }
+            return amount.toString();
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadContent('realtime');
+        });
+        
+        // 自动刷新（每60秒）
+        setInterval(() => {
+            if (currentTab === 'realtime') {
+                loadRealtimeData();
+            }
+        }, 60000);
+    </script>
+</body>
+</html>
