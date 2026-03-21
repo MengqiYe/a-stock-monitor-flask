@@ -30,7 +30,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import time
 import random
-from modules.stock_list import ALL_STOCKS, SZ50_STOCKS, ZZ500_STOCKS, HK_STOCKS, MAIN_INDICES, HK_INDICES
+from modules.stock_list import ALL_STOCKS, SZ50_STOCKS, ZZ500_STOCKS, HK_STOCKS, MAIN_INDICES, HK_INDICES, get_index_components, get_index_info
 
 
 class AStockDataFetcher:

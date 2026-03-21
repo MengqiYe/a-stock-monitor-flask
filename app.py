@@ -24,6 +24,7 @@ from flask_cors import CORS
 from modules.data_fetcher import fetcher    # 数据获取模块
 from modules.strategies import engine       # 选股策略引擎模块
 from modules.quant_engine import quant_engine  # 量化交易引擎模块
+from modules.stock_list import MAIN_INDICES, get_index_info, get_index_components  # 指数数据
 
 
 # ==================== Flask应用初始化 ====================
@@ -1136,6 +1137,82 @@ def get_hk_indices():
             'success': True,
             'data': data,
             'count': len(data),
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/index/<index_code>', methods=['GET'])
+def get_index_detail(index_code):
+    """
+    获取指数详细信息及成分股
+    
+    API接口: GET /api/index/<index_code>
+    
+    功能说明:
+        获取指定指数的详细信息和成分股列表
+    
+    URL Parameters:
+        index_code (str): 指数代码（如：000016-上证50, 000905-中证500）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 指数信息及成分股列表
+    """
+    try:
+        # 获取指数信息
+        index_info = get_index_info(index_code)
+        
+        if not index_info:
+            return jsonify({
+                'success': False,
+                'message': '未找到该指数'
+            }), 404
+        
+        # 获取成分股的实时行情
+        components = index_info['components']
+        component_codes = [s['code'] for s in components]
+        
+        # 获取实时行情数据
+        df = fetcher.get_realtime_quotes()
+        
+        # 筛选出成分股的行情
+        component_quotes = []
+        for _, row in df.iterrows():
+            if row['code'] in component_codes:
+                quote = row.to_dict()
+                # 匹配股票名称
+                for c in components:
+                    if c['code'] == row['code']:
+                        quote['name'] = c['name']
+                        break
+                component_quotes.append(quote)
+        
+        # 获取指数当前价格（模拟）
+        import random
+        for idx in MAIN_INDICES:
+            if idx['code'] == index_code:
+                pre_close = random.uniform(1000, 15000)
+                change_pct = random.uniform(-3, 3)
+                price = pre_close * (1 + change_pct / 100)
+                index_info['price'] = round(price, 2)
+                index_info['change_pct'] = round(change_pct, 2)
+                index_info['change'] = round(price - pre_close, 2)
+                break
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'index': index_info,
+                'components': component_quotes,
+                'component_count': len(component_quotes)
+            },
             'timestamp': pd.Timestamp.now().isoformat()
         })
         

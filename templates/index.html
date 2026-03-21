@@ -355,6 +355,29 @@
             border-color: #667eea;
         }
         
+        /* 弹窗样式 */
+        .modal {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .modal-content {
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .close-btn:hover {
+            color: #333 !important;
+        }
+        
         .refresh-btn {
             float: right;
             background: #52c41a;
@@ -470,6 +493,14 @@
         
         <div class="content" id="content">
             <div class="loading">加载中...</div>
+        </div>
+    </div>
+    
+    <!-- 指数详情弹窗 -->
+    <div id="index-modal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 900px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <span class="close-btn" onclick="closeIndexModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999; transition: color 0.3s;">&times;</span>
+            <div id="index-modal-content"></div>
         </div>
     </div>
     
@@ -720,6 +751,129 @@
                 return (amount / 10000).toFixed(2) + '万';
             }
             return amount.toFixed(2);
+        }
+        
+        // ==================== 指数详情弹窗 ====================
+        
+        // 显示指数成分股
+        async function showIndexDetail(indexCode) {
+            const modal = document.getElementById('index-modal');
+            const modalContent = document.getElementById('index-modal-content');
+            
+            // 显示弹窗
+            modal.style.display = 'flex';
+            modalContent.innerHTML = '<div class="loading">加载成分股数据...</div>';
+            
+            try {
+                const response = await fetch(`/api/index/${indexCode}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderIndexDetail(result.data);
+                } else {
+                    modalContent.innerHTML = `<div class="no-data">${result.message}</div>`;
+                }
+            } catch (error) {
+                modalContent.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染指数详情
+        function renderIndexDetail(data) {
+            const modalContent = document.getElementById('index-modal-content');
+            const index = data.index;
+            const components = data.components;
+            
+            const changeClass = index.change_pct >= 0 ? 'change-positive' : 'change-negative';
+            const changeSign = index.change_pct >= 0 ? '+' : '';
+            
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="margin-bottom: 10px;">${index.name} <span style="font-size: 0.8rem; color: #666; font-weight: normal;">${index.code}</span></h2>
+                    <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">${index.description || ''}</p>
+                    <div style="display: flex; gap: 30px; align-items: center;">
+                        <div>
+                            <span style="font-size: 2rem; font-weight: bold;">${index.price ? index.price.toFixed(2) : '-'}</span>
+                        </div>
+                        <div>
+                            <span class="${changeClass}" style="font-size: 1.2rem;">${changeSign}${index.change_pct ? index.change_pct.toFixed(2) : '0.00'}%</span>
+                            <span class="${changeClass}" style="font-size: 1rem; margin-left: 10px;">${changeSign}${index.change ? index.change.toFixed(2) : '0.00'}</span>
+                        </div>
+                        <div style="margin-left: auto; color: #666;">
+                            成分股: <strong>${data.component_count}</strong> 只
+                        </div>
+                    </div>
+                </div>
+                
+                <h3 style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #667eea;">成分股列表</h3>
+                
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th>最新价</th>
+                                <th>涨跌幅</th>
+                                <th>涨跌额</th>
+                                <th>成交额</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            components.forEach((stock, i) => {
+                const stockChangeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                const stockChangeSign = stock.change_pct >= 0 ? '+' : '';
+                html += `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td class="stock-code">${stock.code}</td>
+                        <td class="stock-name">${stock.name}</td>
+                        <td>${stock.price ? stock.price.toFixed(2) : '-'}</td>
+                        <td class="${stockChangeClass}">${stockChangeSign}${stock.change_pct ? stock.change_pct.toFixed(2) : '0.00'}%</td>
+                        <td class="${stockChangeClass}">${stockChangeSign}${stock.change ? stock.change.toFixed(2) : '0.00'}</td>
+                        <td>${stock.amount ? formatAmount(stock.amount) : '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            modalContent.innerHTML = html;
+        }
+        
+        // 显示港股指数详情（暂无成分股数据）
+        function showHKIndexDetail(indexCode) {
+            const modal = document.getElementById('index-modal');
+            const modalContent = document.getElementById('index-modal-content');
+            
+            modal.style.display = 'flex';
+            modalContent.innerHTML = `
+                <div style="text-align: center; padding: 50px;">
+                    <h3>港股指数</h3>
+                    <p style="color: #666; margin-top: 15px;">港股指数成分股数据暂未开放</p>
+                </div>
+            `;
+        }
+        
+        // 关闭弹窗
+        function closeIndexModal() {
+            const modal = document.getElementById('index-modal');
+            modal.style.display = 'none';
+        }
+        
+        // 点击弹窗外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('index-modal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
         }
         
         // ==================== 市场全景功能 ====================

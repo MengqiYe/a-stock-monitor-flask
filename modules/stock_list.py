@@ -5,16 +5,24 @@
 
 # 主要指数
 MAIN_INDICES = [
-    {'code': '000001', 'name': '上证指数', 'market': 'sh'},
-    {'code': '399001', 'name': '深证成指', 'market': 'sz'},
-    {'code': '399006', 'name': '创业板指', 'market': 'sz'},
-    {'code': '000016', 'name': '上证50', 'market': 'sh'},
-    {'code': '000300', 'name': '沪深300', 'market': 'sh'},
-    {'code': '000905', 'name': '中证500', 'market': 'sh'},
-    {'code': '000852', 'name': '中证1000', 'market': 'sh'},
-    {'code': '399005', 'name': '中小板指', 'market': 'sz'},
-    {'code': '399102', 'name': '创业板综', 'market': 'sz'},
+    {'code': '000001', 'name': '上证指数', 'market': 'sh', 'description': '上海证券交易所综合股价指数'},
+    {'code': '399001', 'name': '深证成指', 'market': 'sz', 'description': '深圳证券交易所成份股价指数'},
+    {'code': '399006', 'name': '创业板指', 'market': 'sz', 'description': '创业板综合指数'},
+    {'code': '000016', 'name': '上证50', 'market': 'sh', 'description': '上证50指数成分股'},
+    {'code': '000300', 'name': '沪深300', 'market': 'sh', 'description': '沪深300指数成分股'},
+    {'code': '000905', 'name': '中证500', 'market': 'sh', 'description': '中证500指数成分股'},
+    {'code': '000852', 'name': '中证1000', 'market': 'sh', 'description': '中证1000指数成分股'},
+    {'code': '399005', 'name': '中小板指', 'market': 'sz', 'description': '中小板综合指数'},
+    {'code': '399102', 'name': '创业板综', 'market': 'sz', 'description': '创业板综合指数'},
 ]
+
+# 指数成分股映射（指数代码 -> 成分股代码列表）
+INDEX_COMPONENTS = {
+    '000016': 'sz50',      # 上证50 -> SZ50_STOCKS
+    '000300': 'hs300',     # 沪深300 -> 上证50 + 中证500部分
+    '000905': 'zz500',     # 中证500 -> ZZ500_STOCKS
+    '000852': 'zz1000',    # 中证1000 -> 小盘股
+}
 
 # ==================== 上证50成分股（50只）====================
 SZ50_STOCKS = [
@@ -380,3 +388,56 @@ def _merge_stocks():
     return result
 
 ALL_STOCKS = _merge_stocks()
+
+# ==================== 指数成分股获取函数 ====================
+def get_index_components(index_code):
+    """
+    根据指数代码获取成分股列表
+    
+    Args:
+        index_code (str): 指数代码
+    
+    Returns:
+        list: 成分股列表 [{'code': 'xxx', 'name': 'xxx'}, ...]
+    """
+    if index_code == '000016':  # 上证50
+        return SZ50_STOCKS
+    elif index_code == '000905':  # 中证500
+        return ZZ500_STOCKS
+    elif index_code == '000300':  # 沪深300
+        # 沪深300 = 上证50 + 部分中证500
+        return SZ50_STOCKS + ZZ500_STOCKS[:250]
+    elif index_code == '000001':  # 上证指数 - 返回沪市股票
+        return [s for s in ALL_STOCKS if s['code'].startswith('6')]
+    elif index_code == '399001':  # 深证成指 - 返回深市股票
+        return [s for s in ALL_STOCKS if s['code'].startswith('0') or s['code'].startswith('3')]
+    elif index_code == '399006':  # 创业板指
+        return [s for s in ALL_STOCKS if s['code'].startswith('300')]
+    elif index_code == '000852':  # 中证1000
+        return ZZ500_STOCKS  # 小盘股
+    elif index_code == '399005':  # 中小板指
+        return [s for s in ALL_STOCKS if s['code'].startswith('002')]
+    elif index_code == '399102':  # 创业板综
+        return [s for s in ALL_STOCKS if s['code'].startswith('300')]
+    else:
+        return []
+
+def get_index_info(index_code):
+    """
+    获取指数详细信息
+    
+    Args:
+        index_code (str): 指数代码
+    
+    Returns:
+        dict: 指数信息
+    """
+    for idx in MAIN_INDICES:
+        if idx['code'] == index_code:
+            components = get_index_components(index_code)
+            return {
+                **idx,
+                'component_count': len(components),
+                'components': components
+            }
+    return None
