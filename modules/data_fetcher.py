@@ -30,7 +30,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import time
 import random
-from modules.stock_list import ALL_STOCKS, SZ50_STOCKS, ZZ500_STOCKS
+from modules.stock_list import ALL_STOCKS, SZ50_STOCKS, ZZ500_STOCKS, HK_STOCKS, MAIN_INDICES, HK_INDICES
 
 
 class AStockDataFetcher:
@@ -100,19 +100,42 @@ class AStockDataFetcher:
         Note:
             模拟数据仅供演示使用，不反映真实市场情况
         """
-        # 使用上证50和中证500所有成分股（共550只）
+        # 使用上证50和中证500所有成分股
         stocks = ALL_STOCKS
         
         data = []
         for stock in stocks:
+            # 根据股票代码判断市场
+            code = stock['code']
+            if code.startswith('6'):
+                market = 'sh'  # 上海
+                market_name = '沪市'
+            elif code.startswith('000') or code.startswith('001'):
+                market = 'sz'  # 深市主板
+                market_name = '深市主板'
+            elif code.startswith('002'):
+                market = 'sz'  # 中小板
+                market_name = '中小板'
+            elif code.startswith('300'):
+                market = 'sz'  # 创业板
+                market_name = '创业板'
+            elif code.startswith('688'):
+                market = 'sh'  # 科创板
+                market_name = '科创板'
+            else:
+                market = 'sz'
+                market_name = '深市'
+            
             # 生成随机但合理的股价数据
             pre_close = random.uniform(10, 500)  # 昨收价
             change_pct = random.uniform(-9.9, 9.9)  # 涨跌幅（-10% ~ 10%）
             price = pre_close * (1 + change_pct / 100)  # 最新价
             
             data.append({
-                'code': stock['code'],
+                'code': code,
                 'name': stock['name'],
+                'market': market,
+                'market_name': market_name,
                 'price': round(price, 2),                    # 最新价
                 'change_pct': round(change_pct, 2),          # 涨跌幅
                 'change': round(price - pre_close, 2),       # 涨跌额
@@ -128,6 +151,105 @@ class AStockDataFetcher:
                 'pb_ratio': round(random.uniform(0.5, 10), 2),   # 市净率
                 'total_mv': random.randint(1000000000, 10000000000000),     # 总市值
                 'circ_mv': random.randint(500000000, 8000000000000)         # 流通市值
+            })
+        
+        return pd.DataFrame(data)
+    
+    def _get_mock_indices(self) -> pd.DataFrame:
+        """
+        生成模拟指数数据
+        
+        Returns:
+            pd.DataFrame: 模拟的指数行情数据
+        """
+        data = []
+        for idx in MAIN_INDICES:
+            pre_close = random.uniform(1000, 15000)  # 指数点位
+            change_pct = random.uniform(-3, 3)  # 指数涨跌幅一般较小
+            price = pre_close * (1 + change_pct / 100)
+            
+            data.append({
+                'code': idx['code'],
+                'name': idx['name'],
+                'market': idx['market'],
+                'price': round(price, 2),
+                'change_pct': round(change_pct, 2),
+                'change': round(price - pre_close, 2),
+                'high': round(price * (1 + random.uniform(0, 0.02)), 2),
+                'low': round(price * (1 - random.uniform(0, 0.02)), 2),
+                'open': round(price * (1 + random.uniform(-0.01, 0.01)), 2),
+                'pre_close': round(pre_close, 2),
+                'volume': random.randint(100000000, 10000000000),
+                'amount': random.randint(10000000000, 1000000000000),
+            })
+        
+        return pd.DataFrame(data)
+    
+    def _get_mock_hk_stocks(self) -> pd.DataFrame:
+        """
+        生成模拟港股数据
+        
+        Returns:
+            pd.DataFrame: 模拟的港股行情数据
+        """
+        data = []
+        for stock in HK_STOCKS:
+            pre_close = random.uniform(5, 500)  # 港股股价
+            change_pct = random.uniform(-9.9, 9.9)
+            price = pre_close * (1 + change_pct / 100)
+            
+            data.append({
+                'code': stock['code'],
+                'name': stock['name'],
+                'market': 'hk',
+                'market_name': '港股',
+                'price': round(price, 2),
+                'change_pct': round(change_pct, 2),
+                'change': round(price - pre_close, 2),
+                'volume': random.randint(1000000, 100000000),
+                'amount': random.randint(10000000, 10000000000),  # 港股成交额较大
+                'amplitude': round(random.uniform(2, 15), 2),
+                'high': round(price * (1 + random.uniform(0, 0.05)), 2),
+                'low': round(price * (1 - random.uniform(0, 0.05)), 2),
+                'open': round(price * (1 + random.uniform(-0.02, 0.02)), 2),
+                'pre_close': round(pre_close, 2),
+                'turnover_rate': round(random.uniform(0.1, 10), 2),
+            })
+        
+        return pd.DataFrame(data)
+    
+    def _get_mock_hk_indices(self) -> pd.DataFrame:
+        """
+        生成模拟港股指数数据
+        
+        Returns:
+            pd.DataFrame: 模拟的港股指数数据
+        """
+        data = []
+        for idx in HK_INDICES:
+            if idx['code'] == 'HSI':
+                pre_close = random.uniform(15000, 25000)  # 恒生指数
+            elif idx['code'] == 'HSCEI':
+                pre_close = random.uniform(5000, 10000)  # 国企指数
+            else:
+                pre_close = random.uniform(3000, 5000)  # 科技指数
+            
+            change_pct = random.uniform(-3, 3)
+            price = pre_close * (1 + change_pct / 100)
+            
+            data.append({
+                'code': idx['code'],
+                'name': idx['name'],
+                'market': 'hk',
+                'price': round(price, 2),
+                'change_pct': round(change_pct, 2),
+                'change': round(price - pre_close, 2),
+                'high': round(price * (1 + random.uniform(0, 0.02)), 2),
+                'low': round(price * (1 - random.uniform(0, 0.02)), 2),
+                'open': round(price * (1 + random.uniform(-0.01, 0.01)), 2),
+                'pre_close': round(pre_close, 2),
+                'volume': random.randint(100000000, 10000000000),
+                'amount': random.randint(10000000000, 200000000000),
             })
         
         return pd.DataFrame(data)

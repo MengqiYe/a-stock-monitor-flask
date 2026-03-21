@@ -171,6 +171,96 @@
             font-weight: 600;
         }
         
+        .indices-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .index-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: white;
+            min-width: 180px;
+            flex: 1;
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .index-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .index-card.hk {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .index-card .name {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .index-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .index-card .change {
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
+        
+        .index-card .change.up {
+            color: #ff6b6b;
+        }
+        
+        .index-card .change.down {
+            color: #51cf66;
+        }
+        
+        .market-section {
+            margin-bottom: 25px;
+        }
+        
+        .market-section h3 {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .market-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .market-tab {
+            background: #f0f0f0;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .market-tab:hover {
+            background: #e0e0e0;
+        }
+        
+        .market-tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
         .strategy-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -342,6 +432,12 @@
             <p>实时行情监控 · 智能选股策略 · 数据驱动决策</p>
         </header>
         
+        <!-- 指数显示区域 -->
+        <div class="indices-panel" id="indices-panel" style="margin-bottom: 20px;">
+            <div class="indices-row" id="a-indices" style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;"></div>
+            <div class="indices-row" id="hk-indices" style="display: flex; gap: 15px; flex-wrap: wrap;"></div>
+        </div>
+        
         <div class="stats" id="stats">
             <div class="stat-card">
                 <h3>监控股票数</h3>
@@ -363,6 +459,7 @@
         
         <div class="tabs">
             <button class="tab active" onclick="switchTab('realtime')">实时行情</button>
+            <button class="tab" onclick="switchTab('hk')">港股</button>
             <button class="tab" onclick="switchTab('market')">市场全景</button>
             <button class="tab" onclick="switchTab('board')">板块监控</button>
             <button class="tab" onclick="switchTab('strategies')">选股策略</button>
@@ -406,6 +503,9 @@
                     case 'realtime':
                         await loadRealtimeData();
                         break;
+                    case 'hk':
+                        await loadHKStocks();
+                        break;
                     case 'market':
                         await loadMarketOverview();
                         break;
@@ -442,6 +542,184 @@
             } else {
                 throw new Error(result.message);
             }
+        }
+        
+        // ==================== 港股功能 ====================
+        
+        // 加载港股数据
+        async function loadHKStocks() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载港股数据...</div>';
+            
+            try {
+                // 并行获取港股股票和港股指数
+                const [stocksRes, indicesRes] = await Promise.all([
+                    fetch('/api/hk/stocks'),
+                    fetch('/api/hk/indices')
+                ]);
+                
+                const stocksResult = await stocksRes.json();
+                const indicesResult = await indicesRes.json();
+                
+                if (stocksResult.success && indicesResult.success) {
+                    renderHKStocks(stocksResult.data, indicesResult.data);
+                } else {
+                    throw new Error(stocksResult.message || indicesResult.message);
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染港股数据
+        function renderHKStocks(stocks, indices) {
+            const content = document.getElementById('content');
+            
+            // 渲染港股指数
+            let indicesHtml = '<div class="market-section"><h3>港股指数</h3><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">';
+            indices.forEach(idx => {
+                const changeClass = idx.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                const changeSign = idx.change_pct >= 0 ? '+' : '';
+                indicesHtml += `
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        <h3 style="color: rgba(255,255,255,0.9);">${idx.name}</h3>
+                        <div class="value">${idx.price.toFixed(2)}</div>
+                        <div class="${changeClass}" style="margin-top: 5px;">${changeSign}${idx.change_pct.toFixed(2)}%</div>
+                    </div>
+                `;
+            });
+            indicesHtml += '</div></div>';
+            
+            // 分类港股股票
+            const categories = {
+                '科技股': stocks.filter(s => ['00700', '09988', '09618', '09999', '03690', '09961', '01810', '09888', '02015', '09868', '01024'].includes(s.code)),
+                '金融股': stocks.filter(s => ['00941', '03988', '01398', '03968', '01288', '02628', '02318', '01299'].includes(s.code)),
+                '消费股': stocks.filter(s => ['06862', '02020', '01929', '02269', '01093', '01177'].includes(s.code)),
+                '其他蓝筹': stocks.filter(s => !['00700', '09988', '09618', '09999', '03690', '09961', '01810', '09888', '02015', '09868', '01024', '00941', '03988', '01398', '03968', '01288', '02628', '02318', '01299', '06862', '02020', '01929', '02269', '01093', '01177'].includes(s.code))
+            };
+            
+            let stocksHtml = '<div class="market-section"><h3>港股股票 (' + stocks.length + '只)</h3>';
+            
+            // 渲染港股股票表格
+            stocksHtml += `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>最新价(港元)</th>
+                            <th>涨跌幅</th>
+                            <th>涨跌额</th>
+                            <th>成交额</th>
+                            <th>换手率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            stocks.forEach(stock => {
+                const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                const changeSign = stock.change_pct >= 0 ? '+' : '';
+                stocksHtml += `
+                    <tr>
+                        <td class="stock-code">${stock.code}</td>
+                        <td class="stock-name">${stock.name}</td>
+                        <td>${stock.price.toFixed(2)}</td>
+                        <td class="${changeClass}">${changeSign}${stock.change_pct.toFixed(2)}%</td>
+                        <td class="${changeClass}">${changeSign}${stock.change.toFixed(2)}</td>
+                        <td>${formatAmount(stock.amount)}</td>
+                        <td>${stock.turnover_rate ? stock.turnover_rate.toFixed(2) + '%' : '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            stocksHtml += '</tbody></table></div>';
+            
+            content.innerHTML = `
+                <button class="btn refresh-btn" onclick="loadHKStocks()">刷新数据</button>
+                <h2 style="margin-bottom: 20px;">港股市场</h2>
+                ${indicesHtml}
+                ${stocksHtml}
+                <div class="timestamp">数据更新时间: ${new Date().toLocaleString()}</div>
+            `;
+        }
+        
+        // ==================== 指数显示功能 ====================
+        
+        // 加载并显示指数数据
+        async function loadIndices() {
+            try {
+                // 并行加载A股指数和港股指数
+                const [aIndicesRes, hkIndicesRes] = await Promise.all([
+                    fetch('/api/indices'),
+                    fetch('/api/hk/indices')
+                ]);
+                
+                const aIndicesResult = await aIndicesRes.json();
+                const hkIndicesResult = await hkIndicesRes.json();
+                
+                if (aIndicesResult.success) {
+                    renderAIndices(aIndicesResult.data);
+                }
+                
+                if (hkIndicesResult.success) {
+                    renderHKIndices(hkIndicesResult.data);
+                }
+            } catch (error) {
+                console.error('加载指数数据失败:', error);
+            }
+        }
+        
+        // 渲染A股指数
+        function renderAIndices(indices) {
+            const container = document.getElementById('a-indices');
+            if (!container) return;
+            
+            let html = '';
+            indices.forEach(idx => {
+                const changeClass = idx.change_pct >= 0 ? 'up' : 'down';
+                const changeSign = idx.change_pct >= 0 ? '+' : '';
+                html += `
+                    <div class="index-card" onclick="showIndexDetail('${idx.code}')">
+                        <div class="name">${idx.name}</div>
+                        <div class="value">${idx.price.toFixed(2)}</div>
+                        <div class="change ${changeClass}">${changeSign}${idx.change_pct.toFixed(2)}% ${changeSign}${idx.change.toFixed(2)}</div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // 渲染港股指数
+        function renderHKIndices(indices) {
+            const container = document.getElementById('hk-indices');
+            if (!container) return;
+            
+            let html = '';
+            indices.forEach(idx => {
+                const changeClass = idx.change_pct >= 0 ? 'up' : 'down';
+                const changeSign = idx.change_pct >= 0 ? '+' : '';
+                html += `
+                    <div class="index-card hk" onclick="showHKIndexDetail('${idx.code}')">
+                        <div class="name">${idx.name}</div>
+                        <div class="value">${idx.price.toFixed(2)}</div>
+                        <div class="change ${changeClass}">${changeSign}${idx.change_pct.toFixed(2)}%</div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // 格式化金额
+        function formatAmount(amount) {
+            if (amount >= 100000000) {
+                return (amount / 100000000).toFixed(2) + '亿';
+            } else if (amount >= 10000) {
+                return (amount / 10000).toFixed(2) + '万';
+            }
+            return amount.toFixed(2);
         }
         
         // ==================== 市场全景功能 ====================
@@ -1639,6 +1917,7 @@
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             loadContent('realtime');
+            loadIndices();  // 加载指数数据
             // 更新顶部市场统计卡片
             updateMarketStatsCard();
         });

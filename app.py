@@ -1035,6 +1035,208 @@ def get_board_overview():
         }), 500
 
 
+# ==================== 指数和港股API ====================
+
+@app.route('/api/indices', methods=['GET'])
+def get_indices():
+    """
+    获取主要指数数据
+    
+    API接口: GET /api/indices
+    
+    功能说明:
+        获取A股主要指数的实时数据，包括：
+        - 上证指数
+        - 深证成指
+        - 创业板指
+        - 上证50
+        - 沪深300
+        - 中证500
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 指数数据列表
+    """
+    try:
+        df = fetcher._get_mock_indices()
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data),
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/hk/stocks', methods=['GET'])
+def get_hk_stocks():
+    """
+    获取港股实时行情数据
+    
+    API接口: GET /api/hk/stocks
+    
+    功能说明:
+        获取港股主要股票的实时行情数据
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 港股数据列表
+            - count: 股票总数
+    """
+    try:
+        df = fetcher._get_mock_hk_stocks()
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data),
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/hk/indices', methods=['GET'])
+def get_hk_indices():
+    """
+    获取港股指数数据
+    
+    API接口: GET /api/hk/indices
+    
+    功能说明:
+        获取港股主要指数的实时数据，包括：
+        - 恒生指数
+        - 恒生国企指数
+        - 恒生科技指数
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 港股指数数据列表
+    """
+    try:
+        df = fetcher._get_mock_hk_indices()
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data),
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/all_markets', methods=['GET'])
+def get_all_markets():
+    """
+    获取所有市场数据（A股、港股、指数）
+    
+    API接口: GET /api/all_markets
+    
+    功能说明:
+        一次性获取所有市场的行情数据，包括：
+        - A股指数（上证、深证、创业板等）
+        - A股股票（按市场分类）
+        - 港股指数
+        - 港股股票
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 包含各市场数据的字典
+    """
+    try:
+        # 获取A股数据
+        a_df = fetcher.get_realtime_quotes()
+        a_data = a_df.to_dict('records')
+        
+        # 按市场分类A股
+        a_by_market = {
+            'sh_main': [],      # 沪市主板
+            'sz_main': [],      # 深市主板
+            'sme': [],          # 中小板
+            'chinext': [],      # 创业板
+            'star': [],         # 科创板
+        }
+        
+        for stock in a_data:
+            market_name = stock.get('market_name', '')
+            if market_name == '沪市':
+                a_by_market['sh_main'].append(stock)
+            elif market_name == '深市主板':
+                a_by_market['sz_main'].append(stock)
+            elif market_name == '中小板':
+                a_by_market['sme'].append(stock)
+            elif market_name == '创业板':
+                a_by_market['chinext'].append(stock)
+            elif market_name == '科创板':
+                a_by_market['star'].append(stock)
+            else:
+                # 根据代码判断
+                code = stock.get('code', '')
+                if code.startswith('6'):
+                    a_by_market['sh_main'].append(stock)
+                elif code.startswith('000') or code.startswith('001'):
+                    a_by_market['sz_main'].append(stock)
+                elif code.startswith('002'):
+                    a_by_market['sme'].append(stock)
+                elif code.startswith('300'):
+                    a_by_market['chinext'].append(stock)
+                elif code.startswith('688'):
+                    a_by_market['star'].append(stock)
+        
+        # 获取指数数据
+        indices_df = fetcher._get_mock_indices()
+        indices_data = indices_df.to_dict('records')
+        
+        # 获取港股数据
+        hk_df = fetcher._get_mock_hk_stocks()
+        hk_data = hk_df.to_dict('records')
+        
+        # 获取港股指数
+        hk_indices_df = fetcher._get_mock_hk_indices()
+        hk_indices_data = hk_indices_df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'a_indices': indices_data,
+                'a_stocks': a_by_market,
+                'a_stocks_total': len(a_data),
+                'hk_indices': hk_indices_data,
+                'hk_stocks': hk_data,
+                'hk_stocks_total': len(hk_data),
+            },
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 # ==================== 错误处理 ====================
 
 @app.errorhandler(404)
