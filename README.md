@@ -6,7 +6,7 @@
 ![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-**一个基于 Python Flask 的 A股实时行情监控系统，提供多种智能选股策略**
+**一个基于 Python Flask 的 A股实时行情监控系统，覆盖全市场5491只A股，提供多种智能选股策略**
 
 [功能特性](#功能特性) • [快速开始](#快速开始) • [选股策略](#选股策略) • [API文档](docs/API.md)
 
@@ -18,14 +18,46 @@
 
 A股即时监视系统是一个功能完整的股票行情监控平台，旨在帮助投资者：
 
-- 📊 **实时监控**：获取A股市场实时行情数据
+- 📊 **全市场监控**：覆盖**5491只A股**和**135只港股**，按市场和行业分类浏览
+- 📈 **指数追踪**：上证指数、深证成指、创业板指等9大A股指数 + 3大港股指数
 - 🎯 **智能选股**：提供5种专业选股策略
 - 🔥 **热门排行**：涨幅榜、跌幅榜、成交额榜、换手率榜
 - 🔍 **股票搜索**：按代码或名称快速搜索股票
 
 ## ✨ 功能特性
 
-### 1. 实时行情监控
+### 1. 全市场股票浏览 ⭐ NEW
+- **全部A股**：5,491只上市股票实时数据
+- **市场分类**：
+  - 沪市主板：1,703只
+  - 科创板：603只
+  - 深市主板：527只
+  - 中小板：922只
+  - 创业板：1,392只
+- **行业分类**：医药生物、电子、银行、化工等30+行业
+- **分页浏览**：支持按市场和行业筛选，分页展示
+
+### 2. 指数数据中心 ⭐ NEW
+**A股主要指数（9只）**：
+- 上证指数、深证成指、创业板指
+- 上证50、沪深300、中证500、中证1000
+- 中小板指、创业板综
+
+**港股指数（3只）**：
+- 恒生指数
+- 恒生国企指数
+- 恒生科技指数
+
+**成分股查看**：点击任意指数卡片，即可查看该指数的成分股列表
+
+### 3. 港股市场 ⭐ NEW
+- **港股股票**：135只主要蓝筹股
+  - 科技股：腾讯、阿里、美团、京东、小米等
+  - 金融股：中国移动、工商银行、招商银行等
+  - 消费股：海底捞、安踏、周大福等
+- **实时行情**：价格、涨跌幅、成交额、换手率
+
+### 4. 实时行情监控
 - 全市场A股实时行情数据
 - 股票价格、涨跌幅、成交量等核心指标
 - 自动刷新机制（每60秒）
@@ -135,7 +167,9 @@ a-stock-monitor-flask/
 │   ├── __init__.py       # 模块初始化
 │   ├── data_fetcher.py   # 数据获取模块
 │   ├── strategies.py     # 选股策略引擎
-│   └── quant_engine.py   # 量化交易引擎 ⭐
+│   ├── quant_engine.py   # 量化交易引擎
+│   ├── stock_list.py     # 指数和成分股数据 ⭐
+│   └── full_stock_list.py # 全市场股票列表管理 ⭐
 ├── templates/
 │   └── index.html        # 前端页面模板
 └── static/               # 静态资源目录
@@ -207,14 +241,22 @@ a-stock-monitor-flask/
 | `/api/search` | GET | 搜索股票 |
 | `/api/strategies` | GET | 获取策略列表 |
 | `/api/strategy/<id>` | GET | 运行指定策略 |
-| `/api/market/statistics` | GET | 获取市场全景统计 ⭐ |
-| `/api/market/classify` | GET | 获取市场分类数据 ⭐ |
-| `/api/board/industry` | GET | 获取行业板块行情 ⭐ |
-| `/api/board/concept` | GET | 获取概念板块行情 ⭐ |
-| `/api/board/overview` | GET | 获取板块概览 ⭐ |
-| `/api/quant/strategies` | GET | 获取量化策略列表 ⭐ |
-| `/api/quant/backtest` | POST | 运行量化回测 ⭐ |
-| `/api/quant/indicators` | POST | 计算技术指标 ⭐ |
+| `/api/stocks/all` | GET | 获取全部A股列表（分页） ⭐ |
+| `/api/stocks/categories` | GET | 获取股票分类统计 ⭐ |
+| `/api/stocks/market/<market>` | GET | 按市场获取股票 ⭐ |
+| `/api/stocks/industry/<industry>` | GET | 按行业获取股票 ⭐ |
+| `/api/indices` | GET | 获取A股指数数据 ⭐ |
+| `/api/index/<code>` | GET | 获取指数详情及成分股 ⭐ |
+| `/api/hk/stocks` | GET | 获取港股股票列表 ⭐ |
+| `/api/hk/indices` | GET | 获取港股指数数据 ⭐ |
+| `/api/market/statistics` | GET | 获取市场全景统计 |
+| `/api/market/classify` | GET | 获取市场分类数据 |
+| `/api/board/industry` | GET | 获取行业板块行情 |
+| `/api/board/concept` | GET | 获取概念板块行情 |
+| `/api/board/overview` | GET | 获取板块概览 |
+| `/api/quant/strategies` | GET | 获取量化策略列表 |
+| `/api/quant/backtest` | POST | 运行量化回测 |
+| `/api/quant/indicators` | POST | 计算技术指标 |
 
 ## ⚙️ 配置说明
 
