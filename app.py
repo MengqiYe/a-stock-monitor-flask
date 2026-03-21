@@ -25,6 +25,7 @@ from modules.data_fetcher import fetcher    # 数据获取模块
 from modules.strategies import engine       # 选股策略引擎模块
 from modules.quant_engine import quant_engine  # 量化交易引擎模块
 from modules.stock_list import MAIN_INDICES, get_index_info, get_index_components  # 指数数据
+from modules.full_stock_list import stock_list_manager, MARKET_CATEGORIES, INDUSTRY_CATEGORIES  # 完整股票列表
 
 
 # ==================== Flask应用初始化 ====================
@@ -1212,6 +1213,249 @@ def get_index_detail(index_code):
                 'index': index_info,
                 'components': component_quotes,
                 'component_count': len(component_quotes)
+            },
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# ==================== 完整股票列表API ====================
+
+@app.route('/api/stocks/all', methods=['GET'])
+def get_all_stocks_list():
+    """
+    获取所有A股股票列表
+    
+    API接口: GET /api/stocks/all
+    
+    Query Parameters:
+        page (int): 页码，默认1
+        size (int): 每页数量，默认100，最大500
+        market (str): 市场筛选（sh_main, sh_star, sz_main, sz_sme, sz_chinext）
+        industry (str): 行业筛选
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 股票列表
+            - pagination: 分页信息
+    """
+    try:
+        page = request.args.get('page', 1, type=int)
+        size = min(request.args.get('size', 100, type=int), 500)
+        market_filter = request.args.get('market', '')
+        industry_filter = request.args.get('industry', '')
+        
+        # 获取完整股票列表
+        df = stock_list_manager.get_all_stocks()
+        
+        # 应用筛选
+        if market_filter:
+            df = df[df['market'] == market_filter]
+        if industry_filter:
+            df = df[df['industry'] == industry_filter]
+        
+        # 计算分页
+        total = len(df)
+        total_pages = (total + size - 1) // size
+        start = (page - 1) * size
+        end = start + size
+        
+        # 获取当前页数据
+        page_data = df.iloc[start:end]
+        
+        # 转换为字典列表
+        stocks = page_data.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': stocks,
+            'pagination': {
+                'page': page,
+                'size': size,
+                'total': total,
+                'total_pages': total_pages
+            },
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/stocks/categories', methods=['GET'])
+def get_stock_categories():
+    """
+    获取股票分类信息
+    
+    API接口: GET /api/stocks/categories
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 包含市场分类和行业分类的统计信息
+    """
+    try:
+        # 获取统计信息
+        stats = stock_list_manager.get_market_statistics()
+        
+        # 构建分类信息
+        categories = {
+            'markets': [],
+            'industries': []
+        }
+        
+        # 市场分类
+        for market_code, market_info in MARKET_CATEGORIES.items():
+            count = stats['by_market'].get(market_code, {}).get('count', 0)
+            categories['markets'].append({
+                'code': market_code,
+                'name': market_info['name'],
+                'count': count
+            })
+        
+        # 行业分类
+        for industry, count in stats['by_industry'].items():
+            categories['industries'].append({
+                'name': industry,
+                'count': count
+            })
+        
+        # 按数量排序
+        categories['industries'].sort(key=lambda x: x['count'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'data': categories,
+            'total_stocks': stats['total'],
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/stocks/market/<market>', methods=['GET'])
+def get_stocks_by_market(market):
+    """
+    按市场获取股票列表
+    
+    API接口: GET /api/stocks/market/<market>
+    
+    URL Parameters:
+        market (str): 市场代码（sh_main, sh_star, sz_main, sz_sme, sz_chinext）
+    
+    Query Parameters:
+        page (int): 页码
+        size (int): 每页数量
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 股票列表
+            - market_name: 市场名称
+    """
+    try:
+        page = request.args.get('page', 1, type=int)
+        size = min(request.args.get('size', 100, type=int), 500)
+        
+        # 验证市场代码
+        if market not in MARKET_CATEGORIES:
+            return jsonify({
+                'success': False,
+                'message': f'无效的市场代码: {market}'
+            }), 400
+        
+        market_info = MARKET_CATEGORIES[market]
+        
+        # 获取股票列表
+        df = stock_list_manager.get_stocks_by_market(market)
+        
+        # 分页
+        total = len(df)
+        total_pages = (total + size - 1) // size
+        start = (page - 1) * size
+        end = start + size
+        
+        page_data = df.iloc[start:end]
+        stocks = page_data.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': stocks,
+            'market': market,
+            'market_name': market_info['name'],
+            'pagination': {
+                'page': page,
+                'size': size,
+                'total': total,
+                'total_pages': total_pages
+            },
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/stocks/industry/<industry>', methods=['GET'])
+def get_stocks_by_industry(industry):
+    """
+    按行业获取股票列表
+    
+    API接口: GET /api/stocks/industry/<industry>
+    
+    URL Parameters:
+        industry (str): 行业名称
+    
+    Query Parameters:
+        page (int): 页码
+        size (int): 每页数量
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 股票列表
+    """
+    try:
+        page = request.args.get('page', 1, type=int)
+        size = min(request.args.get('size', 100, type=int), 500)
+        
+        # 获取股票列表
+        df = stock_list_manager.get_stocks_by_industry(industry)
+        
+        # 分页
+        total = len(df)
+        total_pages = (total + size - 1) // size
+        start = (page - 1) * size
+        end = start + size
+        
+        page_data = df.iloc[start:end]
+        stocks = page_data.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': stocks,
+            'industry': industry,
+            'pagination': {
+                'page': page,
+                'size': size,
+                'total': total,
+                'total_pages': total_pages
             },
             'timestamp': pd.Timestamp.now().isoformat()
         })

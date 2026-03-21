@@ -482,6 +482,7 @@
         
         <div class="tabs">
             <button class="tab active" onclick="switchTab('realtime')">实时行情</button>
+            <button class="tab" onclick="switchTab('allstocks')">全部股票</button>
             <button class="tab" onclick="switchTab('hk')">港股</button>
             <button class="tab" onclick="switchTab('market')">市场全景</button>
             <button class="tab" onclick="switchTab('board')">板块监控</button>
@@ -534,6 +535,9 @@
                     case 'realtime':
                         await loadRealtimeData();
                         break;
+                    case 'allstocks':
+                        await loadAllStocksCategories();
+                        break;
                     case 'hk':
                         await loadHKStocks();
                         break;
@@ -573,6 +577,216 @@
             } else {
                 throw new Error(result.message);
             }
+        }
+        
+        // ==================== 全部股票分类浏览 ====================
+        
+        // 当前筛选状态
+        let currentFilter = { market: '', industry: '', page: 1, size: 50 };
+        let categoriesData = null;
+        
+        // 加载股票分类
+        async function loadAllStocksCategories() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载股票分类...</div>';
+            
+            try {
+                // 获取分类信息
+                const categoriesRes = await fetch('/api/stocks/categories');
+                const categoriesResult = await categoriesRes.json();
+                
+                if (categoriesResult.success) {
+                    categoriesData = categoriesResult.data;
+                    renderAllStocksUI(categoriesResult);
+                } else {
+                    throw new Error(categoriesResult.message);
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染全部股票UI
+        function renderAllStocksUI(categoriesResult) {
+            const content = document.getElementById('content');
+            const markets = categoriesResult.data.markets;
+            const industries = categoriesResult.data.industries;
+            const total = categoriesResult.total_stocks;
+            
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="display: inline-block;">全部股票</h2>
+                    <span style="margin-left: 15px; color: #666; font-size: 0.95rem;">共 <strong>${total}</strong> 只股票</span>
+                </div>
+                
+                <!-- 市场分类 -->
+                <div class="market-section">
+                    <h3>按市场分类</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="market-tab ${!currentFilter.market ? 'active' : ''}" onclick="filterByMarket('')">全部 (${total})</button>
+            `;
+            
+            markets.forEach(m => {
+                if (m.count > 0) {
+                    html += `<button class="market-tab ${currentFilter.market === m.code ? 'active' : ''}" onclick="filterByMarket('${m.code}')">${m.name} (${m.count})</button>`;
+                }
+            });
+            
+            html += `
+                    </div>
+                </div>
+                
+                <!-- 行业分类 -->
+                <div class="market-section">
+                    <h3>按行业分类</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="market-tab ${!currentFilter.industry ? 'active' : ''}" onclick="filterByIndustry('')">全部</button>
+            `;
+            
+            industries.slice(0, 15).forEach(i => {
+                html += `<button class="market-tab ${currentFilter.industry === i.name ? 'active' : ''}" onclick="filterByIndustry('${i.name}')">${i.name} (${i.count})</button>`;
+            });
+            
+            html += `
+                    </div>
+                </div>
+                
+                <!-- 股票列表 -->
+                <div class="market-section">
+                    <h3>股票列表 <span id="stock-list-info" style="font-weight: normal; font-size: 0.9rem; color: #666;"></span></h3>
+                    <div id="stock-list-container"><div class="loading">加载中...</div></div>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+            
+            // 加载股票列表
+            loadStocksList();
+        }
+        
+        // 按市场筛选
+        function filterByMarket(market) {
+            currentFilter.market = market;
+            currentFilter.page = 1;
+            loadAllStocksCategories();
+        }
+        
+        // 按行业筛选
+        function filterByIndustry(industry) {
+            currentFilter.industry = industry;
+            currentFilter.page = 1;
+            loadAllStocksCategories();
+        }
+        
+        // 加载股票列表
+        async function loadStocksList() {
+            const container = document.getElementById('stock-list-container');
+            const info = document.getElementById('stock-list-info');
+            
+            container.innerHTML = '<div class="loading">加载股票列表...</div>';
+            
+            try {
+                // 构建URL
+                let url = `/api/stocks/all?page=${currentFilter.page}&size=${currentFilter.size}`;
+                if (currentFilter.market) {
+                    url += `&market=${currentFilter.market}`;
+                }
+                if (currentFilter.industry) {
+                    url += `&industry=${encodeURIComponent(currentFilter.industry)}`;
+                }
+                
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderStocksList(result);
+                } else {
+                    container.innerHTML = `<div class="no-data">${result.message}</div>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染股票列表
+        function renderStocksList(result) {
+            const container = document.getElementById('stock-list-container');
+            const info = document.getElementById('stock-list-info');
+            const stocks = result.data;
+            const pagination = result.pagination;
+            
+            info.textContent = `(第 ${pagination.page}/${pagination.total_pages} 页，共 ${pagination.total} 只)`;
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>市场</th>
+                            <th>行业</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            stocks.forEach((stock, i) => {
+                const index = (pagination.page - 1) * pagination.size + i + 1;
+                html += `
+                    <tr>
+                        <td>${index}</td>
+                        <td class="stock-code">${stock.code}</td>
+                        <td class="stock-name">${stock.name}</td>
+                        <td>${stock.market_name || '-'}</td>
+                        <td>${stock.industry || '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+                
+                <!-- 分页 -->
+                <div style="margin-top: 20px; display: flex; justify-content: center; gap: 10px; align-items: center;">
+            `;
+            
+            // 上一页
+            if (pagination.page > 1) {
+                html += `<button class="btn" onclick="goToPage(${pagination.page - 1})">上一页</button>`;
+            }
+            
+            // 页码
+            const startPage = Math.max(1, pagination.page - 2);
+            const endPage = Math.min(pagination.total_pages, pagination.page + 2);
+            
+            for (let p = startPage; p <= endPage; p++) {
+                if (p === pagination.page) {
+                    html += `<span style="padding: 8px 16px; background: #667eea; color: white; border-radius: 6px;">${p}</span>`;
+                } else {
+                    html += `<button class="btn" style="background: #f0f0f0; color: #333;" onclick="goToPage(${p})">${p}</button>`;
+                }
+            }
+            
+            // 下一页
+            if (pagination.page < pagination.total_pages) {
+                html += `<button class="btn" onclick="goToPage(${pagination.page + 1})">下一页</button>`;
+            }
+            
+            html += `
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+        
+        // 跳转到指定页
+        function goToPage(page) {
+            currentFilter.page = page;
+            loadStocksList();
+            // 滚动到股票列表
+            document.getElementById('stock-list-container').scrollIntoView({ behavior: 'smooth' });
         }
         
         // ==================== 港股功能 ====================
