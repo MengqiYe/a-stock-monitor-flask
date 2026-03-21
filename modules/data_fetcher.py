@@ -434,6 +434,355 @@ class AStockDataFetcher:
                 'volume_top': [],
                 'turnover_top': []
             }
+    
+    def classify_stocks_by_market(self, df: pd.DataFrame = None) -> Dict:
+        """
+        按市场分类股票
+        
+        将股票按交易所和板块进行分类，包括沪市主板、深市主板、
+        创业板、科创板、北交所等。
+        
+        Args:
+            df (pd.DataFrame, optional): 股票数据，如果为None则获取实时数据
+        
+        Returns:
+            Dict: 包含各市场股票数据的字典：
+                - sh_main: 沪市主板（代码以600、601、603开头）
+                - sz_main: 深市主板（代码以000、001开头）
+                - gem: 创业板（代码以300开头）
+                - star: 科创板（代码以688开头）
+                - bse: 北交所（代码以8开头）
+        
+        Example:
+            >>> markets = fetcher.classify_stocks_by_market()
+            >>> print(f"沪市主板: {len(markets['sh_main'])}只")
+        """
+        if df is None:
+            df = self.get_realtime_quotes()
+        
+        result = {
+            'sh_main': pd.DataFrame(),    # 沪市主板
+            'sz_main': pd.DataFrame(),    # 深市主板
+            'gem': pd.DataFrame(),        # 创业板
+            'star': pd.DataFrame(),       # 科创板
+            'bse': pd.DataFrame()         # 北交所
+        }
+        
+        try:
+            # 沪市主板：600、601、603开头
+            result['sh_main'] = df[df['code'].str.match(r'^(600|601|603)')]
+            
+            # 深市主板：000、001开头
+            result['sz_main'] = df[df['code'].str.match(r'^(000|001)')]
+            
+            # 创业板：300开头
+            result['gem'] = df[df['code'].str.match(r'^300')]
+            
+            # 科创板：688开头
+            result['star'] = df[df['code'].str.match(r'^688')]
+            
+            # 北交所：8开头（通常为83、87、88）
+            result['bse'] = df[df['code'].str.match(r'^8')]
+            
+        except Exception as e:
+            print(f"市场分类失败: {e}")
+        
+        return result
+    
+    def get_market_statistics(self) -> Dict:
+        """
+        获取市场全景统计
+        
+        计算整个A股市场的统计指标，包括涨跌分布、成交额、
+        市值等关键指标。
+        
+        Returns:
+            Dict: 市场统计数据：
+                - total_stocks: 股票总数
+                - up_count: 上涨股票数
+                - down_count: 下跌股票数
+                - flat_count: 平盘股票数
+                - limit_up: 涨停股票数
+                - limit_down: 跌停股票数
+                - avg_change: 平均涨跌幅
+                - total_amount: 总成交额
+                - total_volume: 总成交量
+                - market_sentiment: 市场情绪指标（0-100）
+                - market_stats: 各市场统计
+                - new_high_count: 创新高股票数
+                - new_low_count: 创新低股票数
+        
+        Example:
+            >>> stats = fetcher.get_market_statistics()
+            >>> print(f"上涨: {stats['up_count']}, 下跌: {stats['down_count']}")
+        """
+        cache_key = "market_statistics"
+        cached = self._get_cached_data(cache_key)
+        if cached is not None:
+            return cached
+        
+        try:
+            df = self.get_realtime_quotes()
+            markets = self.classify_stocks_by_market(df)
+            
+            # 基础统计
+            total_stocks = len(df)
+            up_count = len(df[df['change_pct'] > 0])
+            down_count = len(df[df['change_pct'] < 0])
+            flat_count = len(df[df['change_pct'] == 0])
+            
+            # 涨跌停统计（涨跌幅接近10%或20%）
+            # 主板涨跌停约10%，创业板/科创板约20%
+            limit_up = len(df[df['change_pct'] >= 9.5])
+            limit_down = len(df[df['change_pct'] <= -9.5])
+            
+            # 平均涨跌幅
+            avg_change = df['change_pct'].mean()
+            
+            # 总成交额和成交量
+            total_amount = df['amount'].sum()
+            total_volume = df['volume'].sum()
+            
+            # 市场情绪指标（基于涨跌比例计算）
+            if total_stocks > 0:
+                market_sentiment = round(up_count / total_stocks * 100, 2)
+            else:
+                market_sentiment = 50
+            
+            # 各市场统计
+            market_stats = {}
+            for market_name, market_df in markets.items():
+                if len(market_df) > 0:
+                    market_stats[market_name] = {
+                        'count': len(market_df),
+                        'up_count': len(market_df[market_df['change_pct'] > 0]),
+                        'down_count': len(market_df[market_df['change_pct'] < 0]),
+                        'avg_change': round(market_df['change_pct'].mean(), 2),
+                        'total_amount': float(market_df['amount'].sum()),
+                        'top_gainer': market_df.nlargest(1, 'change_pct').to_dict('records')[0] if len(market_df) > 0 else None,
+                        'top_loser': market_df.nsmallest(1, 'change_pct').to_dict('records')[0] if len(market_df) > 0 else None
+                    }
+            
+            # 创新高/新低统计（使用振幅判断）
+            new_high_count = len(df[df['high'] == df['high'].rolling(60, min_periods=1).max()])
+            new_low_count = len(df[df['low'] == df['low'].rolling(60, min_periods=1).min()])
+            
+            result = {
+                'total_stocks': total_stocks,
+                'up_count': up_count,
+                'down_count': down_count,
+                'flat_count': flat_count,
+                'limit_up': limit_up,
+                'limit_down': limit_down,
+                'avg_change': round(avg_change, 2),
+                'total_amount': float(total_amount),
+                'total_volume': float(total_volume),
+                'market_sentiment': market_sentiment,
+                'market_stats': market_stats,
+                'new_high_count': new_high_count,
+                'new_low_count': new_low_count,
+                'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            self._set_cache(cache_key, result)
+            return result
+            
+        except Exception as e:
+            print(f"获取市场统计失败: {e}")
+            return {}
+    
+    def get_industry_board(self) -> pd.DataFrame:
+        """
+        获取行业板块行情
+        
+        获取各行业板块的实时行情数据，包括涨跌幅、成交额等。
+        
+        Returns:
+            pd.DataFrame: 行业板块数据，列为：
+                - name: 板块名称
+                - change_pct: 涨跌幅
+                - up_count: 上涨股票数
+                - down_count: 下跌股票数
+                - lead_stock: 领涨股票
+                - total_amount: 成交额
+        
+        Example:
+            >>> df = fetcher.get_industry_board()
+            >>> print(df.nlargest(5, 'change_pct'))
+        """
+        cache_key = "industry_board"
+        cached = self._get_cached_data(cache_key)
+        if cached is not None:
+            return cached
+        
+        try:
+            # 从akshare获取行业板块行情
+            df = ak.stock_board_industry_name_em()
+            
+            # 获取每个行业的详细数据
+            result_list = []
+            for _, row in df.head(100).iterrows():  # 限制前100个行业
+                try:
+                    industry_name = row['板块名称']
+                    # 获取行业成分股
+                    cons_df = ak.stock_board_industry_cons_em(symbol=industry_name)
+                    
+                    if not cons_df.empty:
+                        # 计算行业统计数据
+                        up_count = len(cons_df[cons_df['涨跌幅'] > 0])
+                        down_count = len(cons_df[cons_df['涨跌幅'] < 0])
+                        avg_change = cons_df['涨跌幅'].mean()
+                        total_amount = cons_df['成交额'].sum() if '成交额' in cons_df.columns else 0
+                        
+                        # 领涨股票
+                        lead_stock = cons_df.nlargest(1, '涨跌幅')
+                        lead_stock_name = lead_stock['股票名称'].values[0] if not lead_stock.empty else ''
+                        
+                        result_list.append({
+                            'name': industry_name,
+                            'change_pct': round(avg_change, 2),
+                            'up_count': up_count,
+                            'down_count': down_count,
+                            'lead_stock': lead_stock_name,
+                            'total_amount': float(total_amount),
+                            'stock_count': len(cons_df)
+                        })
+                except Exception as inner_e:
+                    continue
+            
+            result_df = pd.DataFrame(result_list)
+            self._set_cache(cache_key, result_df)
+            return result_df
+            
+        except Exception as e:
+            print(f"获取行业板块失败: {e}")
+            return pd.DataFrame()
+    
+    def get_concept_board(self) -> pd.DataFrame:
+        """
+        获取概念板块行情
+        
+        获取各概念板块的实时行情数据。
+        
+        Returns:
+            pd.DataFrame: 概念板块数据
+        
+        Example:
+            >>> df = fetcher.get_concept_board()
+            >>> print(df.nlargest(10, 'change_pct'))
+        """
+        cache_key = "concept_board"
+        cached = self._get_cached_data(cache_key)
+        if cached is not None:
+            return cached
+        
+        try:
+            # 从akshare获取概念板块行情
+            df = ak.stock_board_concept_name_em()
+            
+            # 获取热门概念的详细数据
+            result_list = []
+            for _, row in df.head(80).iterrows():  # 限制前80个概念
+                try:
+                    concept_name = row['板块名称']
+                    # 获取概念成分股
+                    cons_df = ak.stock_board_concept_cons_em(symbol=concept_name)
+                    
+                    if not cons_df.empty:
+                        # 计算概念统计数据
+                        up_count = len(cons_df[cons_df['涨跌幅'] > 0])
+                        down_count = len(cons_df[cons_df['涨跌幅'] < 0])
+                        avg_change = cons_df['涨跌幅'].mean()
+                        total_amount = cons_df['成交额'].sum() if '成交额' in cons_df.columns else 0
+                        
+                        # 领涨股票
+                        lead_stock = cons_df.nlargest(1, '涨跌幅')
+                        lead_stock_name = lead_stock['股票名称'].values[0] if not lead_stock.empty else ''
+                        
+                        result_list.append({
+                            'name': concept_name,
+                            'change_pct': round(avg_change, 2),
+                            'up_count': up_count,
+                            'down_count': down_count,
+                            'lead_stock': lead_stock_name,
+                            'total_amount': float(total_amount),
+                            'stock_count': len(cons_df)
+                        })
+                except Exception:
+                    continue
+            
+            result_df = pd.DataFrame(result_list)
+            self._set_cache(cache_key, result_df)
+            return result_df
+            
+        except Exception as e:
+            print(f"获取概念板块失败: {e}")
+            return pd.DataFrame()
+    
+    def get_board_overview(self) -> Dict:
+        """
+        获取板块概览
+        
+        获取行业和概念板块的综合概览数据，包括涨幅排行、
+        资金流向等。
+        
+        Returns:
+            Dict: 板块概览数据：
+                - industry_top: 行业涨幅TOP10
+                - industry_bottom: 行业跌幅TOP10
+                - concept_top: 概念涨幅TOP10
+                - concept_bottom: 概念跌幅TOP10
+                - hot_industries: 热门行业（成交额TOP）
+                - hot_concepts: 热门概念（成交额TOP）
+        
+        Example:
+            >>> overview = fetcher.get_board_overview()
+            >>> print(overview['industry_top'])
+        """
+        cache_key = "board_overview"
+        cached = self._get_cached_data(cache_key)
+        if cached is not None:
+            return cached
+        
+        try:
+            # 获取行业和概念板块数据
+            industry_df = self.get_industry_board()
+            concept_df = self.get_concept_board()
+            
+            result = {
+                'industry_top': [],
+                'industry_bottom': [],
+                'concept_top': [],
+                'concept_bottom': [],
+                'hot_industries': [],
+                'hot_concepts': []
+            }
+            
+            # 行业涨幅榜
+            if not industry_df.empty:
+                result['industry_top'] = industry_df.nlargest(10, 'change_pct').to_dict('records')
+                result['industry_bottom'] = industry_df.nsmallest(10, 'change_pct').to_dict('records')
+                result['hot_industries'] = industry_df.nlargest(10, 'total_amount').to_dict('records')
+            
+            # 概念涨幅榜
+            if not concept_df.empty:
+                result['concept_top'] = concept_df.nlargest(10, 'change_pct').to_dict('records')
+                result['concept_bottom'] = concept_df.nsmallest(10, 'change_pct').to_dict('records')
+                result['hot_concepts'] = concept_df.nlargest(10, 'total_amount').to_dict('records')
+            
+            self._set_cache(cache_key, result)
+            return result
+            
+        except Exception as e:
+            print(f"获取板块概览失败: {e}")
+            return {
+                'industry_top': [],
+                'industry_bottom': [],
+                'concept_top': [],
+                'concept_bottom': [],
+                'hot_industries': [],
+                'hot_concepts': []
+            }
 
 
 # ==================== 全局实例 ====================

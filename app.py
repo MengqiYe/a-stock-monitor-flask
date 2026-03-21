@@ -766,6 +766,274 @@ def compare_quant_strategies():
         }), 500
 
 
+# ==================== 市场全景与板块监控API ====================
+
+@app.route('/api/market/statistics', methods=['GET'])
+def get_market_statistics():
+    """
+    获取市场全景统计
+    
+    API接口: GET /api/market/statistics
+    
+    功能说明:
+        获取A股市场整体统计数据，包括：
+        - 涨跌分布（上涨/下跌/平盘数量）
+        - 涨跌停统计
+        - 平均涨跌幅
+        - 总成交额/成交量
+        - 市场情绪指标
+        - 各市场（沪市/深市/创业板/科创板/北交所）统计
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 市场统计数据
+    
+    示例:
+        curl http://localhost:5000/api/market/statistics
+    """
+    try:
+        data = fetcher.get_market_statistics()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': '获取市场统计失败'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/market/classify', methods=['GET'])
+def get_market_classify():
+    """
+    获取市场分类数据
+    
+    API接口: GET /api/market/classify
+    
+    功能说明:
+        按交易所分类获取股票数据：
+        - sh_main: 沪市主板
+        - sz_main: 深市主板
+        - gem: 创业板
+        - star: 科创板
+        - bse: 北交所
+    
+    Query Parameters:
+        market (str, optional): 指定市场类型，不传则返回所有市场
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 各市场股票数据
+    
+    示例:
+        curl http://localhost:5000/api/market/classify
+        curl http://localhost:5000/api/market/classify?market=gem
+    """
+    try:
+        markets = fetcher.classify_stocks_by_market()
+        
+        # 获取请求参数
+        market = request.args.get('market')
+        
+        if market and market in markets:
+            # 返回指定市场的数据
+            df = markets[market]
+            data = df.to_dict('records') if not df.empty else []
+            return jsonify({
+                'success': True,
+                'data': data,
+                'market': market,
+                'count': len(data)
+            })
+        else:
+            # 返回所有市场的统计信息
+            result = {}
+            for market_name, market_df in markets.items():
+                result[market_name] = {
+                    'count': len(market_df),
+                    'up_count': len(market_df[market_df['change_pct'] > 0]) if not market_df.empty else 0,
+                    'down_count': len(market_df[market_df['change_pct'] < 0]) if not market_df.empty else 0,
+                    'avg_change': round(market_df['change_pct'].mean(), 2) if not market_df.empty else 0,
+                    'top_gainers': market_df.nlargest(5, 'change_pct').to_dict('records') if not market_df.empty else []
+                }
+            
+            return jsonify({
+                'success': True,
+                'data': result
+            })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/board/industry', methods=['GET'])
+def get_industry_board():
+    """
+    获取行业板块行情
+    
+    API接口: GET /api/board/industry
+    
+    功能说明:
+        获取各行业板块的实时行情数据
+    
+    Query Parameters:
+        top (int, optional): 返回的行业数量，默认为20
+        sort (str, optional): 排序方式，'change'按涨跌幅，'amount'按成交额
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 行业板块数据列表
+    
+    示例:
+        curl http://localhost:5000/api/board/industry
+        curl http://localhost:5000/api/board/industry?top=10&sort=change
+    """
+    try:
+        df = fetcher.get_industry_board()
+        
+        if df.empty:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'message': '暂无行业板块数据'
+            })
+        
+        # 获取排序参数
+        top = request.args.get('top', 20, type=int)
+        sort = request.args.get('sort', 'change')
+        
+        # 排序
+        if sort == 'amount':
+            df = df.sort_values('total_amount', ascending=False)
+        else:
+            df = df.sort_values('change_pct', ascending=False)
+        
+        # 取前N个
+        data = df.head(top).to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/board/concept', methods=['GET'])
+def get_concept_board():
+    """
+    获取概念板块行情
+    
+    API接口: GET /api/board/concept
+    
+    功能说明:
+        获取各概念板块的实时行情数据
+    
+    Query Parameters:
+        top (int, optional): 返回的概念数量，默认为20
+        sort (str, optional): 排序方式，'change'按涨跌幅，'amount'按成交额
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 概念板块数据列表
+    
+    示例:
+        curl http://localhost:5000/api/board/concept
+        curl http://localhost:5000/api/board/concept?top=15&sort=amount
+    """
+    try:
+        df = fetcher.get_concept_board()
+        
+        if df.empty:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'message': '暂无概念板块数据'
+            })
+        
+        # 获取排序参数
+        top = request.args.get('top', 20, type=int)
+        sort = request.args.get('sort', 'change')
+        
+        # 排序
+        if sort == 'amount':
+            df = df.sort_values('total_amount', ascending=False)
+        else:
+            df = df.sort_values('change_pct', ascending=False)
+        
+        # 取前N个
+        data = df.head(top).to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/board/overview', methods=['GET'])
+def get_board_overview():
+    """
+    获取板块概览
+    
+    API接口: GET /api/board/overview
+    
+    功能说明:
+        获取行业和概念板块的综合概览，包括：
+        - 行业涨幅/跌幅TOP10
+        - 概念涨幅/跌幅TOP10
+        - 热门行业/概念（按成交额）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 板块概览数据
+    
+    示例:
+        curl http://localhost:5000/api/board/overview
+    """
+    try:
+        data = fetcher.get_board_overview()
+        
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 # ==================== 错误处理 ====================
 
 @app.errorhandler(404)

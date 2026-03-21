@@ -60,7 +60,21 @@ A股即时监视系统是一个功能完整的股票行情监控平台，旨在�
 - 多策略对比分析
 - 技术指标计算（SMA、EMA、RSI、MACD、布林带、ATR等）
 
-### 4. 热门股票排行
+### 4. 市场全景监控 ⭐ NEW
+- 市场整体统计（涨跌分布、涨跌停统计）
+- 市场情绪指标（基于涨跌比例计算）
+- 各市场分类统计（沪市主板、深市主板、创业板、科创板、北交所）
+- 平均涨跌幅、总成交额统计
+
+### 5. 板块监控 ⭐ NEW
+- 行业板块实时监控
+  - 行业涨幅/跌幅排行
+  - 行业领涨股票追踪
+- 概念板块实时监控
+  - 概念涨幅/跌幅排行
+  - 热门概念资金流向
+
+### 6. 热门股票排行
 - 📈 涨幅榜：当日涨幅最大的股票
 - 📉 跌幅榜：当日跌幅最大的股票
 - 💰 成交额榜：成交额最大的股票
@@ -120,7 +134,8 @@ a-stock-monitor-flask/
 ├── modules/
 │   ├── __init__.py       # 模块初始化
 │   ├── data_fetcher.py   # 数据获取模块
-│   └── strategies.py     # 选股策略引擎
+│   ├── strategies.py     # 选股策略引擎
+│   └── quant_engine.py   # 量化交易引擎 ⭐
 ├── templates/
 │   └── index.html        # 前端页面模板
 └── static/               # 静态资源目录
@@ -192,6 +207,14 @@ a-stock-monitor-flask/
 | `/api/search` | GET | 搜索股票 |
 | `/api/strategies` | GET | 获取策略列表 |
 | `/api/strategy/<id>` | GET | 运行指定策略 |
+| `/api/market/statistics` | GET | 获取市场全景统计 ⭐ |
+| `/api/market/classify` | GET | 获取市场分类数据 ⭐ |
+| `/api/board/industry` | GET | 获取行业板块行情 ⭐ |
+| `/api/board/concept` | GET | 获取概念板块行情 ⭐ |
+| `/api/board/overview` | GET | 获取板块概览 ⭐ |
+| `/api/quant/strategies` | GET | 获取量化策略列表 ⭐ |
+| `/api/quant/backtest` | POST | 运行量化回测 ⭐ |
+| `/api/quant/indicators` | POST | 计算技术指标 ⭐ |
 
 ## ⚙️ 配置说明
 
