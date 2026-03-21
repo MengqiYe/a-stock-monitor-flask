@@ -43,20 +43,25 @@ from .strategies import (
     TechnicalIndicatorStrategy,
     BreakoutStrategy
 )
+from .quant_engine import quant_engine, QuantBacktestEngine
 
 __all__ = [
     # 数据获取模块
     'fetcher',
     'AStockDataFetcher',
     
-    # 策略引擎模块
+    # 选股策略引擎模块
     'engine',
     'StrategyEngine',
     'MomentumStrategy',
     'MeanReversionStrategy',
     'VolumePriceStrategy',
     'TechnicalIndicatorStrategy',
-    'BreakoutStrategy'
+    'BreakoutStrategy',
+    
+    # 量化交易引擎模块
+    'quant_engine',
+    'QuantBacktestEngine'
 ]
 
 __version__ = '1.0.0'

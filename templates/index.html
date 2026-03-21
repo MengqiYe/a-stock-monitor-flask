@@ -364,6 +364,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('realtime')">实时行情</button>
             <button class="tab" onclick="switchTab('strategies')">选股策略</button>
+            <button class="tab" onclick="switchTab('quant')">量化回测</button>
             <button class="tab" onclick="switchTab('hot')">热门股票</button>
             <button class="tab" onclick="switchTab('search')">搜索</button>
         </div>
@@ -405,6 +406,9 @@
                         break;
                     case 'strategies':
                         await loadStrategiesData();
+                        break;
+                    case 'quant':
+                        showQuantBacktestUI();
                         break;
                     case 'hot':
                         await loadHotStocks();
@@ -833,6 +837,316 @@
                 return (amount / 10000).toFixed(2) + '万';
             }
             return amount.toString();
+        }
+        
+        // ==================== 量化回测功能 ====================
+        
+        // 显示量化回测UI
+        async function showQuantBacktestUI() {
+            const content = document.getElementById('content');
+            
+            // 获取可用的量化策略
+            let strategies = [];
+            try {
+                const response = await fetch('/api/quant/strategies');
+                const result = await response.json();
+                if (result.success) {
+                    strategies = result.data;
+                }
+            } catch (error) {
+                console.error('获取策略列表失败:', error);
+            }
+            
+            let strategyOptions = strategies.map(s => 
+                `<option value="${s.id}">${s.name} - ${s.description}</option>`
+            ).join('');
+            
+            content.innerHTML = `
+                <h2 style="margin-bottom: 20px;">量化策略回测</h2>
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px;">回测参数</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">股票代码</label>
+                            <input type="text" id="quant-code" placeholder="如: 600519" value="600519" 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">选择策略</label>
+                            <select id="quant-strategy" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                ${strategyOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">初始资金</label>
+                            <input type="number" id="quant-cash" value="100000" 
+                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                    </div>
+                    <button class="btn" onclick="runQuantBacktest()" style="margin-top: 15px;">开始回测</button>
+                    <button class="btn" onclick="compareQuantStrategies()" style="margin-top: 15px; margin-left: 10px; background: #52c41a;">策略对比</button>
+                </div>
+                <div id="quant-results"></div>
+                
+                <div style="margin-top: 30px; padding: 20px; background: #fff7e6; border-radius: 8px;">
+                    <h3 style="margin-bottom: 15px;">技术指标计算</h3>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">股票代码</label>
+                            <input type="text" id="indicator-code" placeholder="如: 600519" value="600519"
+                                   style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">选择指标</label>
+                            <div style="display: flex; gap: 10px;">
+                                <label><input type="checkbox" id="ind-sma" checked> SMA</label>
+                                <label><input type="checkbox" id="ind-rsi" checked> RSI</label>
+                                <label><input type="checkbox" id="ind-macd"> MACD</label>
+                                <label><input type="checkbox" id="ind-bollinger"> 布林带</label>
+                            </div>
+                        </div>
+                        <button class="btn" onclick="calculateIndicators()">计算指标</button>
+                    </div>
+                    <div id="indicator-results" style="margin-top: 15px;"></div>
+                </div>
+            `;
+        }
+        
+        // 运行量化回测
+        async function runQuantBacktest() {
+            const code = document.getElementById('quant-code').value.trim();
+            const strategyId = document.getElementById('quant-strategy').value;
+            const initialCash = parseFloat(document.getElementById('quant-cash').value) || 100000;
+            const resultsDiv = document.getElementById('quant-results');
+            
+            if (!code) {
+                resultsDiv.innerHTML = '<div class="no-data">请输入股票代码</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">正在运行回测...</div>';
+            
+            try {
+                const response = await fetch('/api/quant/backtest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        strategy_id: strategyId,
+                        initial_cash: initialCash
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderBacktestResults(result.data, resultsDiv);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="no-data">回测失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染回测结果
+        function renderBacktestResults(data, container) {
+            const metrics = data.metrics || {};
+            
+            const returnClass = metrics.total_return >= 0 ? 'change-positive' : 'change-negative';
+            const returnSymbol = metrics.total_return >= 0 ? '+' : '';
+            
+            let html = `
+                <h3 style="margin-bottom: 15px;">回测结果 - ${data.symbol}</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #666;">总收益率</div>
+                        <div class="${returnClass}" style="font-size: 1.8rem; font-weight: bold;">${returnSymbol}${metrics.total_return}%</div>
+                    </div>
+                    <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #666;">年化收益率</div>
+                        <div style="font-size: 1.5rem; font-weight: bold;">${metrics.annual_return}%</div>
+                    </div>
+                    <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #666;">最大回撤</div>
+                        <div class="change-negative" style="font-size: 1.5rem; font-weight: bold;">-${metrics.max_drawdown}%</div>
+                    </div>
+                    <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #666;">夏普比率</div>
+                        <div style="font-size: 1.5rem; font-weight: bold;">${metrics.sharpe_ratio}</div>
+                    </div>
+                    <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #666;">胜率</div>
+                        <div style="font-size: 1.5rem; font-weight: bold;">${metrics.win_rate}%</div>
+                    </div>
+                    <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: #666;">总交易次数</div>
+                        <div style="font-size: 1.5rem; font-weight: bold;">${metrics.total_trades}</div>
+                    </div>
+                </div>
+            `;
+            
+            if (data.note) {
+                html += `<div style="padding: 10px; background: #fff3cd; border-radius: 4px; margin-top: 10px;">⚠️ ${data.note}</div>`;
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // 策略对比
+        async function compareQuantStrategies() {
+            const code = document.getElementById('quant-code').value.trim();
+            const resultsDiv = document.getElementById('quant-results');
+            
+            if (!code) {
+                resultsDiv.innerHTML = '<div class="no-data">请输入股票代码</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">正在对比策略...</div>';
+            
+            try {
+                const response = await fetch('/api/quant/backtest/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        strategies: ['sma', 'macd', 'rsi', 'bollinger']
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderComparisonResults(result.data, resultsDiv);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="no-data">对比失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染策略对比结果
+        function renderComparisonResults(data, container) {
+            const comparison = data.comparison || [];
+            
+            let html = `
+                <h3 style="margin-bottom: 15px;">策略对比 - ${data.code}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>策略</th>
+                            <th>总收益率</th>
+                            <th>最大回撤</th>
+                            <th>夏普比率</th>
+                            <th>胜率</th>
+                            <th>交易次数</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            comparison.forEach((item, index) => {
+                const returnClass = item.total_return >= 0 ? 'change-positive' : 'change-negative';
+                const returnSymbol = item.total_return >= 0 ? '+' : '';
+                
+                html += `
+                    <tr>
+                        <td style="font-weight: bold;">${index + 1}</td>
+                        <td>${item.strategy_id.toUpperCase()}</td>
+                        <td class="${returnClass}">${returnSymbol}${item.total_return}%</td>
+                        <td class="change-negative">-${item.max_drawdown}%</td>
+                        <td>${item.sharpe_ratio}</td>
+                        <td>${item.win_rate}%</td>
+                        <td>${item.total_trades}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        // 计算技术指标
+        async function calculateIndicators() {
+            const code = document.getElementById('indicator-code').value.trim();
+            const resultsDiv = document.getElementById('indicator-results');
+            
+            const indicators = [];
+            if (document.getElementById('ind-sma').checked) indicators.push('sma');
+            if (document.getElementById('ind-rsi').checked) indicators.push('rsi');
+            if (document.getElementById('ind-macd').checked) indicators.push('macd');
+            if (document.getElementById('ind-bollinger').checked) indicators.push('bollinger');
+            
+            if (!code || indicators.length === 0) {
+                resultsDiv.innerHTML = '<div class="no-data">请输入股票代码并选择至少一个指标</div>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="loading">计算中...</div>';
+            
+            try {
+                const response = await fetch('/api/quant/indicators', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code,
+                        indicators: indicators
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderIndicatorResults(result.data, resultsDiv);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="no-data">计算失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染指标结果
+        function renderIndicatorResults(data, container) {
+            // 只显示最近20条数据
+            const displayData = data.slice(-20);
+            
+            let html = `
+                <h4 style="margin-bottom: 10px;">技术指标 (最近20个交易日)</h4>
+                <div style="overflow-x: auto;">
+                    <table style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>收盘价</th>
+                                ${data[0].sma !== undefined ? '<th>SMA</th>' : ''}
+                                ${data[0].rsi !== undefined ? '<th>RSI</th>' : ''}
+                                ${data[0].macd !== undefined ? '<th>MACD</th>' : ''}
+                                ${data[0].bb_upper !== undefined ? '<th>布林上轨</th><th>布林下轨</th>' : ''}
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            displayData.forEach(row => {
+                const date = row.date || (row.datetime ? row.datetime.split('T')[0] : '-');
+                html += `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${row.close ? row.close.toFixed(2) : '-'}</td>
+                        ${row.sma !== undefined && row.sma !== null ? `<td>${row.sma.toFixed(2)}</td>` : (data[0].sma !== undefined ? '<td>-</td>' : '')}
+                        ${row.rsi !== undefined && row.rsi !== null ? `<td>${row.rsi.toFixed(2)}</td>` : (data[0].rsi !== undefined ? '<td>-</td>' : '')}
+                        ${row.macd !== undefined && row.macd !== null ? `<td>${row.macd.toFixed(4)}</td>` : (data[0].macd !== undefined ? '<td>-</td>' : '')}
+                        ${row.bb_upper !== undefined && row.bb_upper !== null ? `<td>${row.bb_upper.toFixed(2)}</td><td>${row.bb_lower.toFixed(2)}</td>` : ''}
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
         }
         
         // 页面加载完成后初始化

@@ -21,8 +21,9 @@ from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 
 # 导入自定义模块
-from modules.data_fetcher import fetcher  # 数据获取模块
-from modules.strategies import engine      # 策略引擎模块
+from modules.data_fetcher import fetcher    # 数据获取模块
+from modules.strategies import engine       # 选股策略引擎模块
+from modules.quant_engine import quant_engine  # 量化交易引擎模块
 
 
 # ==================== Flask应用初始化 ====================
@@ -461,6 +462,301 @@ def update_strategy_params(strategy_id):
         return jsonify({
             'success': True,
             'message': '参数更新成功'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# ==================== 量化交易API ====================
+
+@app.route('/api/quant/strategies', methods=['GET'])
+def get_quant_strategies():
+    """
+    获取所有可用的量化策略
+    
+    API接口: GET /api/quant/strategies
+    
+    功能说明:
+        获取所有内置的量化交易策略及其参数配置
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 量化策略列表
+    
+    示例:
+        curl http://localhost:5000/api/quant/strategies
+    """
+    try:
+        strategies = quant_engine.get_available_strategies()
+        
+        return jsonify({
+            'success': True,
+            'data': strategies
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/quant/backtest', methods=['POST'])
+def run_quant_backtest():
+    """
+    运行量化策略回测
+    
+    API接口: POST /api/quant/backtest
+    
+    功能说明:
+        对指定股票运行量化策略回测，返回回测结果
+    
+    Request Body (JSON):
+        {
+            "code": "600519",           // 股票代码
+            "strategy_id": "sma",       // 策略ID
+            "start_date": "2023-01-01", // 开始日期（可选）
+            "end_date": "2023-12-31",   // 结束日期（可选）
+            "initial_cash": 100000,     // 初始资金（可选）
+            "commission_rate": 0.0003,  // 佣金率（可选）
+            "strategy_params": {        // 策略参数（可选）
+                "fast_period": 5,
+                "slow_period": 20
+            }
+        }
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 回测结果，包含指标、资金曲线、交易记录
+    
+    示例:
+        curl -X POST -H "Content-Type: application/json" \\
+             -d '{"code":"600519","strategy_id":"sma"}' \\
+             http://localhost:5000/api/quant/backtest
+    """
+    try:
+        # 获取请求参数
+        params = request.get_json()
+        
+        code = params.get('code')
+        strategy_id = params.get('strategy_id')
+        
+        if not code or not strategy_id:
+            return jsonify({
+                'success': False,
+                'message': '请提供股票代码和策略ID'
+            }), 400
+        
+        # 获取股票历史数据
+        history = fetcher.get_stock_history(code, days=250)
+        
+        if history.empty:
+            return jsonify({
+                'success': False,
+                'message': '无法获取股票历史数据'
+            }), 404
+        
+        # 运行回测
+        result = quant_engine.run_backtest(
+            data=history,
+            strategy_id=strategy_id,
+            symbol=code,
+            initial_cash=params.get('initial_cash', 100000.0),
+            commission_rate=params.get('commission_rate', 0.0003),
+            stamp_tax_rate=params.get('stamp_tax_rate', 0.001),
+            strategy_params=params.get('strategy_params'),
+            start_time=params.get('start_date'),
+            end_time=params.get('end_date')
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/quant/indicators', methods=['POST'])
+def calculate_quant_indicators():
+    """
+    计算技术指标
+    
+    API接口: POST /api/quant/indicators
+    
+    功能说明:
+        对指定股票计算技术指标
+    
+    Request Body (JSON):
+        {
+            "code": "600519",                    // 股票代码
+            "indicators": ["sma", "rsi", "macd"], // 要计算的指标
+            "params": {                          // 指标参数（可选）
+                "sma_period": 20,
+                "rsi_period": 14
+            }
+        }
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 包含技术指标的数据
+    
+    示例:
+        curl -X POST -H "Content-Type: application/json" \\
+             -d '{"code":"600519","indicators":["sma","rsi"]}' \\
+             http://localhost:5000/api/quant/indicators
+    """
+    try:
+        # 获取请求参数
+        params = request.get_json()
+        
+        code = params.get('code')
+        indicators = params.get('indicators', [])
+        
+        if not code:
+            return jsonify({
+                'success': False,
+                'message': '请提供股票代码'
+            }), 400
+        
+        if not indicators:
+            return jsonify({
+                'success': False,
+                'message': '请提供要计算的指标列表'
+            }), 400
+        
+        # 获取股票历史数据
+        history = fetcher.get_stock_history(code, days=120)
+        
+        if history.empty:
+            return jsonify({
+                'success': False,
+                'message': '无法获取股票历史数据'
+            }), 404
+        
+        # 计算指标
+        result_df = quant_engine.calculate_indicators(
+            data=history,
+            indicators=indicators,
+            params=params.get('params')
+        )
+        
+        # 转换为字典列表（处理NaN值）
+        result_data = result_df.where(pd.notnull(result_df), None).to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': result_data,
+            'count': len(result_data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/quant/backtest/compare', methods=['POST'])
+def compare_quant_strategies():
+    """
+    比较多个量化策略的回测结果
+    
+    API接口: POST /api/quant/backtest/compare
+    
+    功能说明:
+        对同一只股票运行多个策略，比较回测结果
+    
+    Request Body (JSON):
+        {
+            "code": "600519",
+            "strategies": ["sma", "macd", "rsi"],
+            "initial_cash": 100000
+        }
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 各策略的回测结果对比
+    
+    示例:
+        curl -X POST -H "Content-Type: application/json" \\
+             -d '{"code":"600519","strategies":["sma","macd"]}' \\
+             http://localhost:5000/api/quant/backtest/compare
+    """
+    try:
+        params = request.get_json()
+        
+        code = params.get('code')
+        strategies = params.get('strategies', [])
+        
+        if not code or not strategies:
+            return jsonify({
+                'success': False,
+                'message': '请提供股票代码和策略列表'
+            }), 400
+        
+        # 获取股票历史数据
+        history = fetcher.get_stock_history(code, days=250)
+        
+        if history.empty:
+            return jsonify({
+                'success': False,
+                'message': '无法获取股票历史数据'
+            }), 404
+        
+        # 运行多个策略回测
+        results = {}
+        for strategy_id in strategies:
+            try:
+                result = quant_engine.run_backtest(
+                    data=history,
+                    strategy_id=strategy_id,
+                    symbol=code,
+                    initial_cash=params.get('initial_cash', 100000.0)
+                )
+                results[strategy_id] = result
+            except Exception as e:
+                results[strategy_id] = {
+                    'success': False,
+                    'message': str(e)
+                }
+        
+        # 汇总对比数据
+        comparison = []
+        for strategy_id, result in results.items():
+            if result.get('success'):
+                metrics = result.get('metrics', {})
+                comparison.append({
+                    'strategy_id': strategy_id,
+                    'total_return': metrics.get('total_return', 0),
+                    'max_drawdown': metrics.get('max_drawdown', 0),
+                    'sharpe_ratio': metrics.get('sharpe_ratio', 0),
+                    'win_rate': metrics.get('win_rate', 0),
+                    'total_trades': metrics.get('total_trades', 0)
+                })
+        
+        # 按收益率排序
+        comparison.sort(key=lambda x: x['total_return'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'code': code,
+                'comparison': comparison,
+                'details': results
+            }
         })
         
     except Exception as e:
