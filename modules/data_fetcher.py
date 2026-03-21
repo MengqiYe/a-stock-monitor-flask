@@ -621,17 +621,19 @@ class AStockDataFetcher:
             print(f"获取股票{code}信息失败: {e}")
             return {}
     
-    def search_stocks(self, keyword: str) -> pd.DataFrame:
+    def search_stocks(self, keyword: str, limit: int = 50) -> pd.DataFrame:
         """
         搜索股票
         
         根据关键词搜索股票，支持按代码或名称模糊匹配。
+        结果按匹配优先级排序：完全匹配 > 前缀匹配 > 包含匹配
         
         Args:
             keyword (str): 搜索关键词（股票代码或名称的一部分）
+            limit (int, optional): 返回结果数量限制，默认50
         
         Returns:
-            pd.DataFrame: 匹配的股票列表
+            pd.DataFrame: 匹配的股票列表，按相关性排序
         
         Example:
             >>> df = fetcher.search_stocks('茅台')
@@ -640,13 +642,47 @@ class AStockDataFetcher:
         try:
             df = self.get_realtime_quotes()
             
-            # 按代码或名称进行模糊匹配
-            mask = (
-                df['code'].str.contains(keyword, case=False, na=False) |
-                df['name'].str.contains(keyword, case=False, na=False)
-            )
+            if not keyword or df.empty:
+                return pd.DataFrame()
             
-            return df[mask]
+            keyword_lower = keyword.lower()
+            
+            # 计算匹配分数和筛选结果
+            results = []
+            for idx, row in df.iterrows():
+                code = str(row.get('code', '')).lower()
+                name = str(row.get('name', '')).lower()
+                score = 0
+                
+                # 完全匹配（最高优先级）
+                if code == keyword_lower or name == keyword_lower:
+                    score = 100
+                # 代码前缀匹配
+                elif code.startswith(keyword_lower):
+                    score = 90
+                # 名称前缀匹配
+                elif name.startswith(keyword_lower):
+                    score = 80
+                # 代码包含匹配
+                elif keyword_lower in code:
+                    score = 70
+                # 名称包含匹配
+                elif keyword_lower in name:
+                    score = 60
+                
+                if score > 0:
+                    results.append((idx, score))
+            
+            # 按分数排序
+            results.sort(key=lambda x: x[1], reverse=True)
+            
+            # 获取排序后的索引
+            sorted_indices = [r[0] for r in results[:limit]]
+            
+            if sorted_indices:
+                return df.loc[sorted_indices]
+            else:
+                return pd.DataFrame()
             
         except Exception as e:
             print(f"搜索股票失败: {e}")

@@ -228,8 +228,9 @@ def search_stocks():
         curl http://localhost:5000/api/search?keyword=600
     """
     try:
-        # 获取搜索关键词
+        # 获取搜索关键词和结果数量限制
         keyword = request.args.get('keyword', '')
+        limit = request.args.get('limit', 50, type=int)
         
         if not keyword:
             return jsonify({
@@ -238,7 +239,7 @@ def search_stocks():
             }), 400
         
         # 调用数据获取模块进行搜索
-        df = fetcher.search_stocks(keyword)
+        df = fetcher.search_stocks(keyword, limit=limit)
         data = df.to_dict('records')
         
         return jsonify({
