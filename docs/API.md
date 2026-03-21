@@ -440,6 +440,187 @@ curl -X POST \
 
 ---
 
+## 量化交易接口
+
+### 10. 获取量化策略列表
+
+获取所有可用的量化交易策略。
+
+**请求**
+
+```
+GET /api/quant/strategies
+```
+
+**响应示例**
+
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "id": "sma",
+            "name": "双均线策略",
+            "description": "使用快慢两条移动平均线，金叉买入死叉卖出",
+            "params": {
+                "fast_period": {"type": "int", "default": 5, "min": 2, "max": 50},
+                "slow_period": {"type": "int", "default": 20, "min": 5, "max": 200}
+            }
+        }
+        // ... 更多策略
+    ]
+}
+```
+
+---
+
+### 11. 运行量化策略回测
+
+对指定股票运行量化策略回测。
+
+**请求**
+
+```
+POST /api/quant/backtest
+Content-Type: application/json
+```
+
+**请求体**
+
+```json
+{
+    "code": "600519",
+    "strategy_id": "sma",
+    "start_date": "2023-01-01",
+    "end_date": "2023-12-31",
+    "initial_cash": 100000,
+    "commission_rate": 0.0003,
+    "strategy_params": {
+        "fast_period": 5,
+        "slow_period": 20
+    }
+}
+```
+
+**响应示例**
+
+```json
+{
+    "success": true,
+    "data": {
+        "symbol": "600519",
+        "metrics": {
+            "total_return": 25.6,
+            "annual_return": 30.7,
+            "max_drawdown": 12.3,
+            "sharpe_ratio": 1.45,
+            "win_rate": 58.3,
+            "profit_factor": 1.8,
+            "total_trades": 24,
+            "winning_trades": 14,
+            "losing_trades": 10
+        },
+        "equity_curve": [],
+        "trades": []
+    }
+}
+```
+
+---
+
+### 12. 策略对比分析
+
+对同一只股票运行多个策略进行对比。
+
+**请求**
+
+```
+POST /api/quant/backtest/compare
+Content-Type: application/json
+```
+
+**请求体**
+
+```json
+{
+    "code": "600519",
+    "strategies": ["sma", "macd", "rsi", "bollinger"],
+    "initial_cash": 100000
+}
+```
+
+**响应示例**
+
+```json
+{
+    "success": true,
+    "data": {
+        "code": "600519",
+        "comparison": [
+            {
+                "strategy_id": "macd",
+                "total_return": 32.5,
+                "max_drawdown": 10.2,
+                "sharpe_ratio": 1.8,
+                "win_rate": 62.5,
+                "total_trades": 16
+            }
+            // ... 更多策略结果
+        ]
+    }
+}
+```
+
+---
+
+### 13. 计算技术指标
+
+计算股票的技术指标。
+
+**请求**
+
+```
+POST /api/quant/indicators
+Content-Type: application/json
+```
+
+**请求体**
+
+```json
+{
+    "code": "600519",
+    "indicators": ["sma", "rsi", "macd", "bollinger"],
+    "params": {
+        "sma_period": 20,
+        "rsi_period": 14
+    }
+}
+```
+
+**响应示例**
+
+```json
+{
+    "success": true,
+    "count": 120,
+    "data": [
+        {
+            "date": "2023-12-01",
+            "close": 1850.00,
+            "sma": 1820.50,
+            "rsi": 65.3,
+            "macd": 12.5,
+            "macd_signal": 10.2,
+            "bb_upper": 1900.0,
+            "bb_lower": 1750.0
+        }
+        // ... 更多数据
+    ]
+}
+```
+
+---
+
 ## 错误响应
 
 当请求失败时，API返回以下格式的错误信息：
