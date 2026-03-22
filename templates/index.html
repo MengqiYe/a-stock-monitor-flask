@@ -1469,11 +1469,9 @@
             
             groups.forEach(g => {
                 const count = stocks.filter(s => (s.group_id || 'default') === g.id).length;
-                if (count > 0 || g.id === 'default') {
-                    groupsHtml += `<button class="market-tab ${currentGroupId === g.id ? 'active' : ''}" 
-                        style="${g.color ? `border-left: 3px solid ${g.color};` : ''}"
-                        onclick="loadWatchlist('${g.id}')">${g.name} (${count})</button>`;
-                }
+                groupsHtml += `<button class="market-tab ${currentGroupId === g.id ? 'active' : ''}" 
+                    style="${g.color ? `border-left: 3px solid ${g.color};` : ''}"
+                    onclick="loadWatchlist('${g.id}')">${g.name} (${count})</button>`;
             });
             
             groupsHtml += `
