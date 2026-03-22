@@ -1419,22 +1419,28 @@
         let watchlistData = [];
         
         // 加载自选持仓
-        async function loadWatchlist() {
+        async function loadWatchlist(currentGroupId = null) {
             const content = document.getElementById('content');
             content.innerHTML = '<div class="loading">加载自选持仓...</div>';
             
             try {
-                // 获取自选股票数据
-                const response = await fetch('/api/watchlist');
-                const result = await response.json();
+                // 获取自选股票数据和分组
+                const [watchlistRes, groupsRes] = await Promise.all([
+                    fetch('/api/watchlist'),
+                    fetch('/api/groups')
+                ]);
                 
-                if (result.success) {
-                    watchlistData = result.data;
-                    renderWatchlist(result.data);
+                const watchlistResult = await watchlistRes.json();
+                const groupsResult = await groupsRes.json();
+                
+                if (watchlistResult.success && groupsResult.success) {
+                    watchlistData = watchlistResult.data;
+                    window.groupsData = groupsResult.data;
+                    renderWatchlist(watchlistData, window.groupsData, currentGroupId);
                     // 更新顶部统计
-                    document.getElementById('watchlist-count').textContent = result.count;
+                    document.getElementById('watchlist-count').textContent = watchlistResult.count;
                 } else {
-                    throw new Error(result.message);
+                    throw new Error(watchlistResult.message || groupsResult.message);
                 }
             } catch (error) {
                 content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
@@ -1442,13 +1448,20 @@
         }
         
         // 渲染自选持仓
-        function renderWatchlist(stocks) {
+        function renderWatchlist(stocks, groups, currentGroupId = null) {
             const content = document.getElementById('content');
+            window.currentGroupId = currentGroupId;
+            
+            // 按分组过滤
+            let filteredStocks = stocks;
+            if (currentGroupId) {
+                filteredStocks = stocks.filter(s => (s.group_id || 'default') === currentGroupId);
+            }
             
             // 计算总盈亏
             let totalProfit = 0;
             let totalValue = 0;
-            stocks.forEach(s => {
+            filteredStocks.forEach(s => {
                 if (s.profit_amount && typeof s.profit_amount === 'number') {
                     totalProfit += s.profit_amount;
                 }
@@ -1457,29 +1470,52 @@
                 }
             });
             
+            // 分组tabs
+            let groupsHtml = `
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;">
+                    <button class="market-tab ${!currentGroupId ? 'active' : ''}" onclick="loadWatchlist(null)">全部 (${stocks.length})</button>
+            `;
+            
+            groups.forEach(g => {
+                const count = stocks.filter(s => (s.group_id || 'default') === g.id).length;
+                if (count > 0 || g.id === 'default') {
+                    groupsHtml += `<button class="market-tab ${currentGroupId === g.id ? 'active' : ''}" 
+                        style="${g.color ? `border-left: 3px solid ${g.color};` : ''}"
+                        onclick="loadWatchlist('${g.id}')">${g.name} (${count})</button>`;
+                }
+            });
+            
+            groupsHtml += `
+                <button onclick="showManageGroupsModal()" style="padding: 8px 12px; background: #f0f0f0; border: 1px dashed #ccc; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">管理分组</button>
+            </div>`;
+            
             let html = `
                 <div style="margin-bottom: 20px;">
                     <h2 style="display: inline-block;">自选持仓</h2>
                     <span style="margin-left: 15px; color: #666; font-size: 0.95rem;">
-                        共 <strong>${stocks.length}</strong> 只股票
+                        ${currentGroupId ? `当前分组: <strong>${groups.find(g => g.id === currentGroupId)?.name || '未知'}</strong> | ` : ''}
+                        共 <strong>${filteredStocks.length}</strong> 只股票
                         ${totalValue > 0 ? `| 总市值 <strong>${formatAmount(totalValue)}</strong>` : ''}
                         ${totalProfit !== 0 ? `| 总盈亏 <strong style="color: ${totalProfit >= 0 ? '#f5222d' : '#52c41a'}">${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}</strong>` : ''}
                     </span>
                 </div>
                 
+                <!-- 分组切换 -->
+                ${groupsHtml}
+                
                 <!-- 操作按钮 -->
                 <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn" onclick="showAddStockModal()" style="background: #52c41a; color: white;">+ 添加自选</button>
-                    <button class="btn refresh-btn" onclick="loadWatchlist()">刷新数据</button>
-                    ${stocks.length > 0 ? '<button class="btn" onclick="clearAllWatchlist()" style="background: #ff4d4f; color: white;">清空全部</button>' : ''}
+                    <button class="btn refresh-btn" onclick="loadWatchlist(currentGroupId)">刷新数据</button>
+                    ${filteredStocks.length > 0 ? '<button class="btn" onclick="clearAllWatchlist()" style="background: #ff4d4f; color: white;">清空当前</button>' : ''}
                 </div>
             `;
             
-            if (stocks.length === 0) {
+            if (filteredStocks.length === 0) {
                 html += `
                     <div class="no-data" style="padding: 60px; text-align: center;">
                         <div style="font-size: 48px; margin-bottom: 20px;">📭</div>
-                        <p style="font-size: 1.1rem; color: #666;">暂无自选股票</p>
+                        <p style="font-size: 1.1rem; color: #666;">${currentGroupId ? '当前分组暂无股票' : '暂无自选股票'}</p>
                         <p style="color: #999; margin-top: 10px;">点击上方"添加自选"按钮，或从股票列表中添加</p>
                     </div>
                 `;
@@ -1488,6 +1524,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="select-all-stocks" onchange="toggleSelectAll(this)" /></th>
                             <th>代码</th>
                             <th>名称</th>
                             <th>最新价</th>
@@ -1502,13 +1539,15 @@
                     <tbody>
                 `;
                 
-                stocks.forEach(stock => {
+                filteredStocks.forEach(stock => {
                     const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
                     const changePrefix = stock.change_pct >= 0 ? '+' : '';
                     const profitClass = stock.profit_pct >= 0 ? 'change-positive' : 'change-negative';
+                    const group = groups.find(g => g.id === (stock.group_id || 'default'));
                     
                     html += `
                         <tr>
+                            <td><input type="checkbox" class="stock-checkbox" data-code="${stock.code}" /></td>
                             <td><strong>${stock.code}</strong></td>
                             <td>${stock.name || '-'}</td>
                             <td>${formatPrice(stock.current_price)}</td>
@@ -1518,7 +1557,7 @@
                             <td class="${profitClass}">${formatProfit(stock.profit_amount)}</td>
                             <td class="${profitClass}">${formatPercent(stock.profit_pct)}</td>
                             <td>
-                                <button onclick="showEditStockModal('${stock.code}', ${stock.shares || 0}, ${stock.cost_price || 0}, '${(stock.note || '').replace(/'/g, "\\'")}')" 
+                                <button onclick="showEditStockModal('${stock.code}', ${stock.shares || 0}, ${stock.cost_price || 0}, '${(stock.note || '').replace(/'/g, "\\'")}', '${stock.group_id || 'default'}')" 
                                     style="padding: 4px 8px; font-size: 0.85rem; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">编辑</button>
                                 <button onclick="removeStock('${stock.code}')" 
                                     style="padding: 4px 8px; font-size: 0.85rem; background: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer;">删除</button>
@@ -1528,13 +1567,278 @@
                 });
                 
                 html += `</tbody></table>`;
+                
+                // 批量操作
+                html += `
+                <div id="batch-actions" style="display: none; margin-top: 15px; padding: 10px; background: #f5f5f5; border-radius: 6px;">
+                    <span style="margin-right: 15px;">已选择 <strong id="selected-count">0</strong> 只股票</span>
+                    <select id="move-to-group-select" style="padding: 5px 10px; border-radius: 4px; border: 1px solid #ddd;">
+                        <option value="">移动到分组...</option>
+                        ${groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
+                    </select>
+                    <button onclick="moveSelectedToGroup()" style="padding: 5px 15px; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">移动</button>
+                    <button onclick="deleteSelected()" style="padding: 5px 15px; background: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">删除选中</button>
+                </div>
+                `;
             }
             
             content.innerHTML = html;
+            
+            // 绑定checkbox事件
+            document.querySelectorAll('.stock-checkbox').forEach(cb => {
+                cb.addEventListener('change', updateBatchActions);
+            });
+        }
+        
+        // 全选/取消全选
+        function toggleSelectAll(checkbox) {
+            document.querySelectorAll('.stock-checkbox').forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateBatchActions();
+        }
+        
+        // 更新批量操作状态
+        function updateBatchActions() {
+            const checkboxes = document.querySelectorAll('.stock-checkbox:checked');
+            const batchActions = document.getElementById('batch-actions');
+            const selectedCount = document.getElementById('selected-count');
+            
+            if (batchActions) {
+                if (checkboxes.length > 0) {
+                    batchActions.style.display = 'block';
+                    selectedCount.textContent = checkboxes.length;
+                } else {
+                    batchActions.style.display = 'none';
+                }
+            }
+        }
+        
+        // 移动选中股票到分组
+        async function moveSelectedToGroup() {
+            const groupSelect = document.getElementById('move-to-group-select');
+            const groupId = groupSelect.value;
+            
+            if (!groupId) {
+                alert('请选择目标分组');
+                return;
+            }
+            
+            const checkboxes = document.querySelectorAll('.stock-checkbox:checked');
+            const codes = Array.from(checkboxes).map(cb => cb.dataset.code);
+            
+            try {
+                const response = await fetch('/api/watchlist/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codes, group_id: groupId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadWatchlist(window.currentGroupId);
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('移动失败: ' + error.message);
+            }
+        }
+        
+        // 删除选中股票
+        async function deleteSelected() {
+            const checkboxes = document.querySelectorAll('.stock-checkbox:checked');
+            const codes = Array.from(checkboxes).map(cb => cb.dataset.code);
+            
+            if (!confirm(`确定要删除选中的 ${codes.length} 只股票吗？`)) {
+                return;
+            }
+            
+            try {
+                for (const code of codes) {
+                    await fetch('/api/watchlist/remove', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code })
+                    });
+                }
+                loadWatchlist(window.currentGroupId);
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+        
+        // 显示分组管理弹窗
+        function showManageGroupsModal() {
+            const groups = window.groupsData || [];
+            
+            let groupsListHtml = groups.map(g => `
+                <div style="display: flex; align-items: center; padding: 10px; background: #f9f9f9; border-radius: 6px; margin-bottom: 8px;">
+                    <span style="width: 20px; height: 20px; border-radius: 50%; background: ${g.color}; margin-right: 10px;"></span>
+                    <span style="flex: 1;">${g.name}</span>
+                    ${g.id !== 'default' ? `
+                        <button onclick="editGroup('${g.id}', '${g.name}', '${g.color}')" style="padding: 4px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">编辑</button>
+                        <button onclick="deleteGroup('${g.id}')" style="padding: 4px 10px; background: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer;">删除</button>
+                    ` : '<span style="color: #999; font-size: 0.85rem;">系统分组</span>'}
+                </div>
+            `).join('');
+            
+            const modalHtml = `
+                <div id="manage-groups-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center;">
+                    <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; position: relative;">
+                        <span class="close-btn" onclick="closeManageGroupsModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999;">&times;</span>
+                        <h3 style="margin-bottom: 20px;">分组管理</h3>
+                        
+                        <div id="groups-list" style="margin-bottom: 20px; max-height: 300px; overflow-y: auto;">
+                            ${groupsListHtml}
+                        </div>
+                        
+                        <div style="border-top: 1px solid #eee; padding-top: 15px;">
+                            <h4 style="margin-bottom: 10px;">新建分组</h4>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="new-group-name" placeholder="分组名称" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                                <input type="color" id="new-group-color" value="#1890ff" style="width: 50px; height: 36px; border: none; border-radius: 6px; cursor: pointer;">
+                                <button onclick="addGroup()" style="padding: 8px 20px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer;">添加</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeManageGroupsModal() {
+            const modal = document.getElementById('manage-groups-modal');
+            if (modal) modal.remove();
+        }
+        
+        // 添加分组
+        async function addGroup() {
+            const name = document.getElementById('new-group-name').value.trim();
+            const color = document.getElementById('new-group-color').value;
+            
+            if (!name) {
+                alert('请输入分组名称');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/groups/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeManageGroupsModal();
+                    loadWatchlist(window.currentGroupId);
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('添加失败: ' + error.message);
+            }
+        }
+        
+        // 编辑分组
+        function editGroup(groupId, name, color) {
+            const modalHtml = `
+                <div id="edit-group-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1002; justify-content: center; align-items: center;">
+                    <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 400px; width: 90%; position: relative;">
+                        <span class="close-btn" onclick="closeEditGroupModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999;">&times;</span>
+                        <h3 style="margin-bottom: 20px;">编辑分组</h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px;">分组名称</label>
+                            <input type="text" id="edit-group-name" value="${name}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 5px;">分组颜色</label>
+                            <input type="color" id="edit-group-color" value="${color}" style="width: 100%; height: 40px; border: none; border-radius: 6px; cursor: pointer;">
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="closeEditGroupModal()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">取消</button>
+                            <button onclick="saveGroup('${groupId}')" style="padding: 10px 20px; background: #1890ff; color: white; border: none; border-radius: 6px; cursor: pointer;">保存</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeEditGroupModal() {
+            const modal = document.getElementById('edit-group-modal');
+            if (modal) modal.remove();
+        }
+        
+        async function saveGroup(groupId) {
+            const name = document.getElementById('edit-group-name').value.trim();
+            const color = document.getElementById('edit-group-color').value;
+            
+            if (!name) {
+                alert('请输入分组名称');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/groups/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: groupId, name, color })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeEditGroupModal();
+                    closeManageGroupsModal();
+                    loadWatchlist(window.currentGroupId);
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+        
+        // 删除分组
+        async function deleteGroup(groupId) {
+            if (!confirm('确定要删除该分组吗？分组内的股票将移至默认分组。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/groups/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: groupId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeManageGroupsModal();
+                    loadWatchlist(window.currentGroupId);
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
         }
         
         // 显示添加股票弹窗
         function showAddStockModal() {
+            const groups = window.groupsData || [];
+            const currentGroup = window.currentGroupId || 'default';
+            
             const modalHtml = `
                 <div id="add-stock-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center;">
                     <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; position: relative;">
@@ -1547,6 +1851,13 @@
                             <input type="text" id="add-stock-code" placeholder="输入代码或名称搜索..." 
                                 style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
                             <div id="stock-search-results" style="margin-top: 5px; max-height: 150px; overflow-y: auto;"></div>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">添加到分组</label>
+                            <select id="add-stock-group" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                                ${groups.map(g => `<option value="${g.id}" ${g.id === currentGroup ? 'selected' : ''}>${g.name}</option>`).join('')}
+                            </select>
                         </div>
                         
                         <div style="margin-bottom: 15px; padding: 10px; background: #f5f5f5; border-radius: 6px;">
@@ -1642,6 +1953,7 @@
         async function addStock() {
             const code = document.getElementById('add-stock-code').value.trim();
             const autoFill = document.getElementById('auto-fill-check').checked;
+            const groupId = document.getElementById('add-stock-group')?.value || 'default';
             
             if (!code) {
                 alert('请输入股票代码');
@@ -1668,6 +1980,7 @@
                         shares, 
                         cost_price: costPrice, 
                         note,
+                        group_id: groupId,
                         auto_fill: autoFill 
                     })
                 });
@@ -1676,7 +1989,7 @@
                 
                 if (result.success) {
                     closeAddStockModal();
-                    loadWatchlist();
+                    loadWatchlist(window.currentGroupId);
                     // 显示自动填充的信息
                     if (result.auto_filled) {
                         console.log(`自动填充: 持仓${result.auto_filled.shares}股, 成本价${result.auto_filled.cost_price}`);
@@ -1690,12 +2003,21 @@
         }
         
         // 显示编辑弹窗
-        function showEditStockModal(code, shares, costPrice, note) {
+        function showEditStockModal(code, shares, costPrice, note, groupId = 'default') {
+            const groups = window.groupsData || [];
+            
             const modalHtml = `
                 <div id="edit-stock-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center;">
                     <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; position: relative;">
                         <span class="close-btn" onclick="closeEditStockModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999;">&times;</span>
                         <h3 style="margin-bottom: 20px;">编辑自选股票 - ${code}</h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">所属分组</label>
+                            <select id="edit-stock-group" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                                ${groups.map(g => `<option value="${g.id}" ${g.id === groupId ? 'selected' : ''}>${g.name}</option>`).join('')}
+                            </select>
+                        </div>
                         
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 500;">持仓股数</label>
@@ -1737,19 +2059,20 @@
             const shares = parseInt(document.getElementById('edit-stock-shares').value);
             const costPrice = parseFloat(document.getElementById('edit-stock-cost').value);
             const note = document.getElementById('edit-stock-note').value.trim();
+            const groupId = document.getElementById('edit-stock-group').value;
             
             try {
                 const response = await fetch('/api/watchlist/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code, shares, cost_price: costPrice, note })
+                    body: JSON.stringify({ code, shares, cost_price: costPrice, note, group_id: groupId })
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
                     closeEditStockModal();
-                    loadWatchlist();
+                    loadWatchlist(window.currentGroupId);
                 } else {
                     alert(result.message);
                 }
@@ -1774,7 +2097,7 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    loadWatchlist();
+                    loadWatchlist(window.currentGroupId);
                 } else {
                     alert(result.message);
                 }
@@ -1785,19 +2108,27 @@
         
         // 清空自选
         async function clearAllWatchlist() {
-            if (!confirm('确定要清空所有自选股票吗？此操作不可恢复！')) {
+            const msg = window.currentGroupId 
+                ? '确定要清空当前分组的所有股票吗？此操作不可恢复！' 
+                : '确定要清空所有自选股票吗？此操作不可恢复！';
+            
+            if (!confirm(msg)) {
                 return;
             }
             
             try {
-                const response = await fetch('/api/watchlist/clear', {
+                const url = window.currentGroupId 
+                    ? `/api/watchlist/clear?group_id=${window.currentGroupId}` 
+                    : '/api/watchlist/clear';
+                    
+                const response = await fetch(url, {
                     method: 'POST'
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    loadWatchlist();
+                    loadWatchlist(window.currentGroupId);
                 } else {
                     alert(result.message);
                 }

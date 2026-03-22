@@ -123,23 +123,32 @@ def get_watchlist():
     """
     获取自选股票列表
     
-    API接口: GET /api/watchlist
+    API接口: GET /api/watchlist?group_id=xxx
+    
+    Args:
+        - group_id: 分组ID（可选，指定则只返回该分组股票）
     
     Returns:
         JSON响应:
             - success: 是否成功
             - data: 自选股票列表（包含实时行情）
             - count: 自选股票数量
+            - groups: 分组统计信息
     """
     try:
+        # 获取分组ID参数
+        group_id = request.args.get('group_id', None)
+        
         # 获取自选股票列表
-        watchlist = watchlist_manager.get_all()
+        watchlist = watchlist_manager.get_all(group_id)
+        groups_stats = watchlist_manager.get_group_stats()
         
         if not watchlist:
             return jsonify({
                 'success': True,
                 'data': [],
                 'count': 0,
+                'groups': groups_stats,
                 'message': '暂无自选股票'
             })
         
@@ -157,6 +166,7 @@ def get_watchlist():
                 'shares': stock.get('shares', 0),
                 'cost_price': stock.get('cost_price', 0),
                 'note': stock.get('note', ''),
+                'group_id': stock.get('group_id', 'default'),
                 'added_at': stock.get('added_at', '')
             }
             
@@ -220,6 +230,7 @@ def get_watchlist():
             'success': True,
             'data': result_stocks,
             'count': len(result_stocks),
+            'groups': groups_stats,
             'timestamp': pd.Timestamp.now().isoformat()
         })
         
@@ -243,6 +254,7 @@ def add_to_watchlist():
         - shares: 持仓股数（可选，默认100）
         - cost_price: 成本价（可选，自动获取当前价）
         - note: 备注（可选）
+        - group_id: 分组ID（可选，默认default）
         - auto_fill: 是否自动填充（默认True，自动获取当前价作为成本价）
     
     Returns:
@@ -270,6 +282,9 @@ def add_to_watchlist():
         
         # 是否自动填充
         auto_fill = data.get('auto_fill', True)
+        
+        # 分组ID
+        group_id = data.get('group_id', 'default')
         
         # 默认持仓和成本价
         shares = int(data.get('shares', 0)) if data.get('shares') is not None else 0
@@ -299,7 +314,8 @@ def add_to_watchlist():
             name=name,
             shares=shares,
             cost_price=cost_price,
-            note=data.get('note', '')
+            note=data.get('note', ''),
+            group_id=group_id
         )
         
         # 返回自动填充的信息
@@ -365,6 +381,7 @@ def update_watchlist():
         - shares: 持仓股数（可选）
         - cost_price: 成本价（可选）
         - note: 备注（可选）
+        - group_id: 分组ID（可选）
     
     Returns:
         JSON响应:
@@ -385,7 +402,8 @@ def update_watchlist():
             code=code,
             shares=data.get('shares'),
             cost_price=data.get('cost_price'),
-            note=data.get('note')
+            note=data.get('note'),
+            group_id=data.get('group_id')
         )
         
         return jsonify(result)
@@ -437,6 +455,198 @@ def get_watchlist_count():
             'success': True,
             'count': count
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# ==================== 分组管理API ====================
+
+@app.route('/api/groups', methods=['GET'])
+def get_groups():
+    """
+    获取所有分组
+    
+    API接口: GET /api/groups
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 分组列表
+    """
+    try:
+        groups = watchlist_manager.get_groups()
+        stats = watchlist_manager.get_group_stats()
+        
+        # 添加统计信息
+        result = []
+        for group in groups:
+            group_data = group.copy()
+            group_data['count'] = stats.get(group['id'], {}).get('count', 0)
+            result.append(group_data)
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/groups/add', methods=['POST'])
+def add_group():
+    """
+    添加分组
+    
+    API接口: POST /api/groups/add
+    
+    Request Body:
+        - name: 分组名称（必填）
+        - color: 分组颜色（可选，默认#1890ff）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json() or {}
+        name = data.get('name', '').strip()
+        color = data.get('color', '#1890ff')
+        
+        if not name:
+            return jsonify({
+                'success': False,
+                'message': '分组名称不能为空'
+            }), 400
+        
+        result = watchlist_manager.add_group(name, color)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/groups/update', methods=['POST'])
+def update_group():
+    """
+    更新分组
+    
+    API接口: POST /api/groups/update
+    
+    Request Body:
+        - id: 分组ID（必填）
+        - name: 分组名称（可选）
+        - color: 分组颜色（可选）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json() or {}
+        group_id = data.get('id', '').strip()
+        
+        if not group_id:
+            return jsonify({
+                'success': False,
+                'message': '分组ID不能为空'
+            }), 400
+        
+        result = watchlist_manager.update_group(
+            group_id=group_id,
+            name=data.get('name'),
+            color=data.get('color')
+        )
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/groups/delete', methods=['POST'])
+def delete_group():
+    """
+    删除分组
+    
+    API接口: POST /api/groups/delete
+    
+    Request Body:
+        - id: 分组ID（必填）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json() or {}
+        group_id = data.get('id', '').strip()
+        
+        if not group_id:
+            return jsonify({
+                'success': False,
+                'message': '分组ID不能为空'
+            }), 400
+        
+        result = watchlist_manager.delete_group(group_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/move', methods=['POST'])
+def move_stocks_to_group():
+    """
+    移动股票到指定分组
+    
+    API接口: POST /api/watchlist/move
+    
+    Request Body:
+        - codes: 股票代码列表（必填）
+        - group_id: 目标分组ID（必填）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json() or {}
+        codes = data.get('codes', [])
+        group_id = data.get('group_id', '')
+        
+        if not codes:
+            return jsonify({
+                'success': False,
+                'message': '请选择要移动的股票'
+            }), 400
+        
+        if not group_id:
+            return jsonify({
+                'success': False,
+                'message': '请选择目标分组'
+            }), 400
+        
+        result = watchlist_manager.move_to_group(codes, group_id)
+        return jsonify(result)
+        
     except Exception as e:
         return jsonify({
             'success': False,
