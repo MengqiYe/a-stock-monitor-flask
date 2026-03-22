@@ -591,18 +591,42 @@
             content.innerHTML = '<div class="loading">加载股票分类...</div>';
             
             try {
-                // 获取分类信息
-                const categoriesRes = await fetch('/api/stocks/categories');
-                const categoriesResult = await categoriesRes.json();
+                // 获取分类信息，添加超时处理
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                
+                const categoriesRes = await fetch('/api/stocks/categories', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                // 检查响应状态
+                if (!categoriesRes.ok) {
+                    throw new Error(`HTTP错误: ${categoriesRes.status}`);
+                }
+                
+                // 先获取文本，再解析JSON（便于调试）
+                const text = await categoriesRes.text();
+                let categoriesResult;
+                try {
+                    categoriesResult = JSON.parse(text);
+                } catch (parseError) {
+                    console.error('JSON解析失败，响应内容:', text.substring(0, 200));
+                    throw new Error('JSON解析失败，请刷新重试');
+                }
                 
                 if (categoriesResult.success) {
                     categoriesData = categoriesResult.data;
                     renderAllStocksUI(categoriesResult);
                 } else {
-                    throw new Error(categoriesResult.message);
+                    throw new Error(categoriesResult.message || '获取数据失败');
                 }
             } catch (error) {
-                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+                if (error.name === 'AbortError') {
+                    content.innerHTML = `<div class="no-data">请求超时，请稍后重试</div>`;
+                } else {
+                    content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+                }
             }
         }
         
@@ -695,16 +719,40 @@
                     url += `&industry=${encodeURIComponent(currentFilter.industry)}`;
                 }
                 
-                const response = await fetch(url);
-                const result = await response.json();
+                // 添加超时处理
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                
+                const response = await fetch(url, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                
+                // 先获取文本，再解析JSON
+                const text = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(text);
+                } catch (parseError) {
+                    console.error('JSON解析失败，响应内容:', text.substring(0, 200));
+                    throw new Error('JSON解析失败，请刷新重试');
+                }
                 
                 if (result.success) {
                     renderStocksList(result);
                 } else {
-                    container.innerHTML = `<div class="no-data">${result.message}</div>`;
+                    container.innerHTML = `<div class="no-data">${result.message || '获取数据失败'}</div>`;
                 }
             } catch (error) {
-                container.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+                if (error.name === 'AbortError') {
+                    container.innerHTML = `<div class="no-data">请求超时，请稍后重试</div>`;
+                } else {
+                    container.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+                }
             }
         }
         
