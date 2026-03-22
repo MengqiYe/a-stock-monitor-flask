@@ -461,13 +461,6 @@
             <div class="indices-row" id="hk-indices" style="display: flex; gap: 15px; flex-wrap: wrap;"></div>
         </div>
         
-        <div class="stats" id="stats">
-            <div class="stat-card" style="cursor: pointer;" onclick="switchTab('watchlist')">
-                <h3>自选持仓 <span style="font-size: 0.8rem; color: #999;">点击管理</span></h3>
-                <div class="value" id="watchlist-count">-</div>
-            </div>
-        </div>
-        
         <div class="tabs">
             <button class="tab active" onclick="switchTab('realtime')">实时行情</button>
             <button class="tab" onclick="switchTab('watchlist')">自选持仓</button>
@@ -1437,8 +1430,6 @@
                     watchlistData = watchlistResult.data;
                     window.groupsData = groupsResult.data;
                     renderWatchlist(watchlistData, window.groupsData, currentGroupId);
-                    // 更新顶部统计
-                    document.getElementById('watchlist-count').textContent = watchlistResult.count;
                 } else {
                     throw new Error(watchlistResult.message || groupsResult.message);
                 }
@@ -2173,19 +2164,6 @@
                 clearTimeout(timeout);
                 timeout = setTimeout(() => func.apply(this, args), wait);
             };
-        }
-        
-        // 页面加载时更新自选数量
-        async function updateWatchlistCount() {
-            try {
-                const response = await fetch('/api/watchlist/count');
-                const result = await response.json();
-                if (result.success) {
-                    document.getElementById('watchlist-count').textContent = result.count;
-                }
-            } catch (error) {
-                console.error('获取自选数量失败:', error);
-            }
         }
         
         // ==================== 原有功能 ====================
@@ -3101,7 +3079,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadContent('realtime');
             loadIndices();  // 加载指数数据
-            updateWatchlistCount();  // 更新自选数量
             // 更新顶部市场统计卡片
             updateMarketStatsCard();
         });
