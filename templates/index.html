@@ -1551,31 +1551,41 @@
                 <div id="add-stock-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center;">
                     <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; position: relative;">
                         <span class="close-btn" onclick="closeAddStockModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999;">&times;</span>
-                        <h3 style="margin-bottom: 20px;">添加自选股票</h3>
+                        <h3 style="margin-bottom: 10px;">添加自选股票</h3>
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">持仓和成本价将自动获取当前行情</p>
                         
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 500;">股票代码 <span style="color: #ff4d4f;">*</span></label>
-                            <input type="text" id="add-stock-code" placeholder="如: 000001" 
+                            <input type="text" id="add-stock-code" placeholder="输入代码或名称搜索..." 
                                 style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
                             <div id="stock-search-results" style="margin-top: 5px; max-height: 150px; overflow-y: auto;"></div>
                         </div>
                         
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">持仓股数</label>
-                            <input type="number" id="add-stock-shares" placeholder="0" min="0"
-                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        <div style="margin-bottom: 15px; padding: 10px; background: #f5f5f5; border-radius: 6px;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" id="auto-fill-check" checked style="margin-right: 8px;">
+                                <span style="font-size: 0.9rem;">自动填充持仓和成本价（默认100股，当前价作为成本）</span>
+                            </label>
                         </div>
                         
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">成本价</label>
-                            <input type="number" id="add-stock-cost" placeholder="0.00" step="0.01" min="0"
-                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
-                        </div>
-                        
-                        <div style="margin-bottom: 20px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">备注</label>
-                            <input type="text" id="add-stock-note" placeholder="可选"
-                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        <div id="manual-fields" style="display: none;">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500;">持仓股数</label>
+                                <input type="number" id="add-stock-shares" placeholder="100" min="0"
+                                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500;">成本价</label>
+                                <input type="number" id="add-stock-cost" placeholder="自动获取当前价" step="0.01" min="0"
+                                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                            </div>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500;">备注</label>
+                                <input type="text" id="add-stock-note" placeholder="可选"
+                                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                            </div>
                         </div>
                         
                         <div style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -1590,6 +1600,11 @@
             
             // 绑定搜索事件
             document.getElementById('add-stock-code').addEventListener('input', debounce(searchStock, 300));
+            
+            // 绑定自动填充切换事件
+            document.getElementById('auto-fill-check').addEventListener('change', function() {
+                document.getElementById('manual-fields').style.display = this.checked ? 'none' : 'block';
+            });
         }
         
         // 搜索股票
@@ -1638,20 +1653,35 @@
         // 添加股票
         async function addStock() {
             const code = document.getElementById('add-stock-code').value.trim();
-            const shares = parseInt(document.getElementById('add-stock-shares').value) || 0;
-            const costPrice = parseFloat(document.getElementById('add-stock-cost').value) || 0;
-            const note = document.getElementById('add-stock-note').value.trim();
+            const autoFill = document.getElementById('auto-fill-check').checked;
             
             if (!code) {
                 alert('请输入股票代码');
                 return;
             }
             
+            // 如果不自动填充，则读取手动输入的值
+            let shares = null;
+            let costPrice = null;
+            let note = '';
+            
+            if (!autoFill) {
+                shares = parseInt(document.getElementById('add-stock-shares').value) || 100;
+                costPrice = parseFloat(document.getElementById('add-stock-cost').value) || 0;
+                note = document.getElementById('add-stock-note').value.trim();
+            }
+            
             try {
                 const response = await fetch('/api/watchlist/add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code, shares, cost_price: costPrice, note })
+                    body: JSON.stringify({ 
+                        code, 
+                        shares, 
+                        cost_price: costPrice, 
+                        note,
+                        auto_fill: autoFill 
+                    })
                 });
                 
                 const result = await response.json();
@@ -1659,6 +1689,10 @@
                 if (result.success) {
                     closeAddStockModal();
                     loadWatchlist();
+                    // 显示自动填充的信息
+                    if (result.auto_filled) {
+                        console.log(`自动填充: 持仓${result.auto_filled.shares}股, 成本价${result.auto_filled.cost_price}`);
+                    }
                 } else {
                     alert(result.message);
                 }

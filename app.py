@@ -239,10 +239,11 @@ def add_to_watchlist():
     
     Request Body:
         - code: 股票代码（必填）
-        - name: 股票名称（可选）
-        - shares: 持仓股数（可选，默认0）
-        - cost_price: 成本价（可选，默认0）
+        - name: 股票名称（可选，自动获取）
+        - shares: 持仓股数（可选，默认100）
+        - cost_price: 成本价（可选，自动获取当前价）
         - note: 备注（可选）
+        - auto_fill: 是否自动填充（默认True，自动获取当前价作为成本价）
     
     Returns:
         JSON响应:
@@ -250,7 +251,7 @@ def add_to_watchlist():
             - message: 提示信息
     """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         code = data.get('code', '').strip()
         
         if not code:
@@ -267,13 +268,46 @@ def add_to_watchlist():
             if stock_info:
                 name = stock_info.get('name', '')
         
+        # 是否自动填充
+        auto_fill = data.get('auto_fill', True)
+        
+        # 默认持仓和成本价
+        shares = int(data.get('shares', 0)) if data.get('shares') is not None else 0
+        cost_price = float(data.get('cost_price', 0)) if data.get('cost_price') is not None else 0
+        
+        # 自动获取当前价格作为成本价
+        if auto_fill and cost_price == 0:
+            try:
+                realtime_df = fetcher.get_realtime_quotes()
+                if not realtime_df.empty and code in realtime_df['code'].values:
+                    row = realtime_df[realtime_df['code'] == code].iloc[0]
+                    current_price = row.get('price', 0)
+                    if current_price and str(current_price) not in ['-', 'nan', '']:
+                        cost_price = float(current_price)
+                        # 如果名称也为空，顺便更新
+                        if not name:
+                            name = str(row.get('name', name))
+            except Exception as e:
+                print(f"获取实时价格失败: {e}")
+        
+        # 默认持仓100股
+        if shares == 0:
+            shares = 100
+        
         result = watchlist_manager.add(
             code=code,
             name=name,
-            shares=int(data.get('shares', 0)),
-            cost_price=float(data.get('cost_price', 0)),
+            shares=shares,
+            cost_price=cost_price,
             note=data.get('note', '')
         )
+        
+        # 返回自动填充的信息
+        if result.get('success'):
+            result['auto_filled'] = {
+                'shares': shares,
+                'cost_price': cost_price
+            }
         
         return jsonify(result)
         
