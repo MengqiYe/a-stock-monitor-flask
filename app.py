@@ -26,6 +26,7 @@ from modules.strategies import engine       # 选股策略引擎模块
 from modules.quant_engine import quant_engine  # 量化交易引擎模块
 from modules.stock_list import MAIN_INDICES, get_index_info, get_index_components  # 指数数据
 from modules.full_stock_list import stock_list_manager, MARKET_CATEGORIES, INDUSTRY_CATEGORIES  # 完整股票列表
+from modules.watchlist import watchlist_manager  # 自选股票管理
 
 
 # ==================== Flask应用初始化 ====================
@@ -108,6 +109,300 @@ def get_realtime_quotes():
             'timestamp': pd.Timestamp.now().isoformat()
         })
         
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# ==================== 自选股票API ====================
+
+@app.route('/api/watchlist', methods=['GET'])
+def get_watchlist():
+    """
+    获取自选股票列表
+    
+    API接口: GET /api/watchlist
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 自选股票列表（包含实时行情）
+            - count: 自选股票数量
+    """
+    try:
+        # 获取自选股票列表
+        watchlist = watchlist_manager.get_all()
+        
+        if not watchlist:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'count': 0,
+                'message': '暂无自选股票'
+            })
+        
+        # 获取实时行情数据
+        codes = [s['code'] for s in watchlist]
+        realtime_df = fetcher.get_realtime_quotes()
+        
+        # 合并数据
+        result_stocks = []
+        for stock in watchlist:
+            code = stock['code']
+            stock_data = {
+                'code': code,
+                'name': stock.get('name', ''),
+                'shares': stock.get('shares', 0),
+                'cost_price': stock.get('cost_price', 0),
+                'note': stock.get('note', ''),
+                'added_at': stock.get('added_at', '')
+            }
+            
+            # 如果有实时行情，添加行情数据
+            if not realtime_df.empty and code in realtime_df['code'].values:
+                row = realtime_df[realtime_df['code'] == code].iloc[0]
+                
+                # 安全获取数值
+                def safe_float(val, default=0):
+                    try:
+                        return float(val) if val is not None and str(val) != '-' and str(val) != 'nan' else default
+                    except:
+                        return default
+                
+                def safe_str(val, default='-'):
+                    try:
+                        return str(val) if val is not None and str(val) != 'nan' else default
+                    except:
+                        return default
+                
+                current_price = safe_float(row.get('price', 0), 0)
+                cost_price = stock.get('cost_price', 0)
+                
+                stock_data.update({
+                    'name': safe_str(row.get('name', stock_data['name']), stock_data['name']),
+                    'current_price': current_price,
+                    'change_pct': safe_float(row.get('change_pct', 0), 0),
+                    'change_amount': safe_float(row.get('change', 0), 0),
+                    'volume': safe_str(row.get('volume', '-'), '-'),
+                    'amount': safe_str(row.get('amount', '-'), '-'),
+                    'high': safe_float(row.get('high', 0), 0),
+                    'low': safe_float(row.get('low', 0), 0),
+                    'open': safe_float(row.get('open', 0), 0),
+                    'prev_close': safe_float(row.get('pre_close', 0), 0),
+                    'market_value': safe_str(row.get('total_mv', '-'), '-'),
+                    'pe': safe_str(row.get('pe_ratio', '-'), '-'),
+                    'pb': safe_str(row.get('pb_ratio', '-'), '-')
+                })
+                
+                # 计算盈亏
+                if cost_price > 0 and current_price > 0:
+                    profit_pct = round((current_price - cost_price) / cost_price * 100, 2)
+                    profit_amount = round((current_price - cost_price) * stock.get('shares', 0), 2)
+                    stock_data['profit_pct'] = profit_pct
+                    stock_data['profit_amount'] = profit_amount
+                else:
+                    stock_data['profit_pct'] = 0
+                    stock_data['profit_amount'] = 0
+            else:
+                # 无实时数据
+                stock_data.update({
+                    'current_price': '-',
+                    'change_pct': '-',
+                    'profit_pct': '-',
+                    'profit_amount': '-'
+                })
+            
+            result_stocks.append(stock_data)
+        
+        return jsonify({
+            'success': True,
+            'data': result_stocks,
+            'count': len(result_stocks),
+            'timestamp': pd.Timestamp.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/add', methods=['POST'])
+def add_to_watchlist():
+    """
+    添加股票到自选
+    
+    API接口: POST /api/watchlist/add
+    
+    Request Body:
+        - code: 股票代码（必填）
+        - name: 股票名称（可选）
+        - shares: 持仓股数（可选，默认0）
+        - cost_price: 成本价（可选，默认0）
+        - note: 备注（可选）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json()
+        code = data.get('code', '').strip()
+        
+        if not code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        # 获取股票名称（如果未提供）
+        name = data.get('name', '')
+        if not name:
+            # 尝试从股票列表获取名称
+            stock_info = stock_list_manager.get_stock_by_code(code)
+            if stock_info:
+                name = stock_info.get('name', '')
+        
+        result = watchlist_manager.add(
+            code=code,
+            name=name,
+            shares=int(data.get('shares', 0)),
+            cost_price=float(data.get('cost_price', 0)),
+            note=data.get('note', '')
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/remove', methods=['POST'])
+def remove_from_watchlist():
+    """
+    从自选中移除股票
+    
+    API接口: POST /api/watchlist/remove
+    
+    Request Body:
+        - code: 股票代码（必填）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json()
+        code = data.get('code', '').strip()
+        
+        if not code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        result = watchlist_manager.remove(code)
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/update', methods=['POST'])
+def update_watchlist():
+    """
+    更新自选股票信息
+    
+    API接口: POST /api/watchlist/update
+    
+    Request Body:
+        - code: 股票代码（必填）
+        - shares: 持仓股数（可选）
+        - cost_price: 成本价（可选）
+        - note: 备注（可选）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        data = request.get_json()
+        code = data.get('code', '').strip()
+        
+        if not code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        result = watchlist_manager.update(
+            code=code,
+            shares=data.get('shares'),
+            cost_price=data.get('cost_price'),
+            note=data.get('note')
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/clear', methods=['POST'])
+def clear_watchlist():
+    """
+    清空自选股票
+    
+    API接口: POST /api/watchlist/clear
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - message: 提示信息
+    """
+    try:
+        result = watchlist_manager.clear()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/watchlist/count', methods=['GET'])
+def get_watchlist_count():
+    """
+    获取自选股票数量
+    
+    API接口: GET /api/watchlist/count
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - count: 自选股票数量
+    """
+    try:
+        count = watchlist_manager.get_count()
+        return jsonify({
+            'success': True,
+            'count': count
+        })
     except Exception as e:
         return jsonify({
             'success': False,

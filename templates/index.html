@@ -462,9 +462,9 @@
         </div>
         
         <div class="stats" id="stats">
-            <div class="stat-card">
-                <h3>监控股票数</h3>
-                <div class="value" id="total-stocks">-</div>
+            <div class="stat-card" style="cursor: pointer;" onclick="switchTab('watchlist')">
+                <h3>自选持仓 <span style="font-size: 0.8rem; color: #999;">点击管理</span></h3>
+                <div class="value" id="watchlist-count">-</div>
             </div>
             <div class="stat-card">
                 <h3>上涨股票数</h3>
@@ -482,6 +482,7 @@
         
         <div class="tabs">
             <button class="tab active" onclick="switchTab('realtime')">实时行情</button>
+            <button class="tab" onclick="switchTab('watchlist')">自选持仓</button>
             <button class="tab" onclick="switchTab('allstocks')">全部股票</button>
             <button class="tab" onclick="switchTab('hk')">港股</button>
             <button class="tab" onclick="switchTab('market')">市场全景</button>
@@ -534,6 +535,9 @@
                 switch(tab) {
                     case 'realtime':
                         await loadRealtimeData();
+                        break;
+                    case 'watchlist':
+                        await loadWatchlist();
                         break;
                     case 'allstocks':
                         await loadAllStocksCategories();
@@ -1419,6 +1423,416 @@
             `;
             
             content.innerHTML = html;
+        }
+        
+        // ==================== 自选持仓功能 ====================
+        
+        // 自选持仓数据缓存
+        let watchlistData = [];
+        
+        // 加载自选持仓
+        async function loadWatchlist() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载自选持仓...</div>';
+            
+            try {
+                // 获取自选股票数据
+                const response = await fetch('/api/watchlist');
+                const result = await response.json();
+                
+                if (result.success) {
+                    watchlistData = result.data;
+                    renderWatchlist(result.data);
+                    // 更新顶部统计
+                    document.getElementById('watchlist-count').textContent = result.count;
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染自选持仓
+        function renderWatchlist(stocks) {
+            const content = document.getElementById('content');
+            
+            // 计算总盈亏
+            let totalProfit = 0;
+            let totalValue = 0;
+            stocks.forEach(s => {
+                if (s.profit_amount && typeof s.profit_amount === 'number') {
+                    totalProfit += s.profit_amount;
+                }
+                if (s.current_price && s.shares) {
+                    totalValue += s.current_price * s.shares;
+                }
+            });
+            
+            let html = `
+                <div style="margin-bottom: 20px;">
+                    <h2 style="display: inline-block;">自选持仓</h2>
+                    <span style="margin-left: 15px; color: #666; font-size: 0.95rem;">
+                        共 <strong>${stocks.length}</strong> 只股票
+                        ${totalValue > 0 ? `| 总市值 <strong>${formatAmount(totalValue)}</strong>` : ''}
+                        ${totalProfit !== 0 ? `| 总盈亏 <strong style="color: ${totalProfit >= 0 ? '#f5222d' : '#52c41a'}">${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}</strong>` : ''}
+                    </span>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn" onclick="showAddStockModal()" style="background: #52c41a; color: white;">+ 添加自选</button>
+                    <button class="btn refresh-btn" onclick="loadWatchlist()">刷新数据</button>
+                    ${stocks.length > 0 ? '<button class="btn" onclick="clearAllWatchlist()" style="background: #ff4d4f; color: white;">清空全部</button>' : ''}
+                </div>
+            `;
+            
+            if (stocks.length === 0) {
+                html += `
+                    <div class="no-data" style="padding: 60px; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">📭</div>
+                        <p style="font-size: 1.1rem; color: #666;">暂无自选股票</p>
+                        <p style="color: #999; margin-top: 10px;">点击上方"添加自选"按钮，或从股票列表中添加</p>
+                    </div>
+                `;
+            } else {
+                html += `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>最新价</th>
+                            <th>涨跌幅</th>
+                            <th>持仓</th>
+                            <th>成本价</th>
+                            <th>盈亏</th>
+                            <th>盈亏%</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                `;
+                
+                stocks.forEach(stock => {
+                    const changeClass = stock.change_pct >= 0 ? 'change-positive' : 'change-negative';
+                    const changePrefix = stock.change_pct >= 0 ? '+' : '';
+                    const profitClass = stock.profit_pct >= 0 ? 'change-positive' : 'change-negative';
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${stock.code}</strong></td>
+                            <td>${stock.name || '-'}</td>
+                            <td>${formatPrice(stock.current_price)}</td>
+                            <td class="${changeClass}">${changePrefix}${formatPercent(stock.change_pct)}</td>
+                            <td>${stock.shares > 0 ? stock.shares + '股' : '-'}</td>
+                            <td>${stock.cost_price > 0 ? stock.cost_price.toFixed(2) : '-'}</td>
+                            <td class="${profitClass}">${formatProfit(stock.profit_amount)}</td>
+                            <td class="${profitClass}">${formatPercent(stock.profit_pct)}</td>
+                            <td>
+                                <button onclick="showEditStockModal('${stock.code}', ${stock.shares || 0}, ${stock.cost_price || 0}, '${(stock.note || '').replace(/'/g, "\\'")}')" 
+                                    style="padding: 4px 8px; font-size: 0.85rem; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">编辑</button>
+                                <button onclick="removeStock('${stock.code}')" 
+                                    style="padding: 4px 8px; font-size: 0.85rem; background: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer;">删除</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `</tbody></table>`;
+            }
+            
+            content.innerHTML = html;
+        }
+        
+        // 显示添加股票弹窗
+        function showAddStockModal() {
+            const modalHtml = `
+                <div id="add-stock-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center;">
+                    <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; position: relative;">
+                        <span class="close-btn" onclick="closeAddStockModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999;">&times;</span>
+                        <h3 style="margin-bottom: 20px;">添加自选股票</h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">股票代码 <span style="color: #ff4d4f;">*</span></label>
+                            <input type="text" id="add-stock-code" placeholder="如: 000001" 
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                            <div id="stock-search-results" style="margin-top: 5px; max-height: 150px; overflow-y: auto;"></div>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">持仓股数</label>
+                            <input type="number" id="add-stock-shares" placeholder="0" min="0"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">成本价</label>
+                            <input type="number" id="add-stock-cost" placeholder="0.00" step="0.01" min="0"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">备注</label>
+                            <input type="text" id="add-stock-note" placeholder="可选"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="closeAddStockModal()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">取消</button>
+                            <button onclick="addStock()" style="padding: 10px 20px; background: #52c41a; color: white; border: none; border-radius: 6px; cursor: pointer;">添加</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // 绑定搜索事件
+            document.getElementById('add-stock-code').addEventListener('input', debounce(searchStock, 300));
+        }
+        
+        // 搜索股票
+        async function searchStock() {
+            const keyword = document.getElementById('add-stock-code').value.trim();
+            const resultsDiv = document.getElementById('stock-search-results');
+            
+            if (keyword.length < 1) {
+                resultsDiv.innerHTML = '';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
+                const result = await response.json();
+                
+                if (result.success && result.data.length > 0) {
+                    let html = '';
+                    result.data.slice(0, 5).forEach(stock => {
+                        html += `<div onclick="selectStock('${stock.code}', '${stock.name.replace(/'/g, "\\'")}')" 
+                            style="padding: 8px; cursor: pointer; border-bottom: 1px solid #eee;">
+                            <strong>${stock.code}</strong> - ${stock.name}
+                        </div>`;
+                    });
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<div style="padding: 8px; color: #999;">未找到匹配股票</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div style="padding: 8px; color: #ff4d4f;">搜索失败</div>';
+            }
+        }
+        
+        // 选择股票
+        function selectStock(code, name) {
+            document.getElementById('add-stock-code').value = code;
+            document.getElementById('stock-search-results').innerHTML = '';
+        }
+        
+        // 关闭添加弹窗
+        function closeAddStockModal() {
+            const modal = document.getElementById('add-stock-modal');
+            if (modal) modal.remove();
+        }
+        
+        // 添加股票
+        async function addStock() {
+            const code = document.getElementById('add-stock-code').value.trim();
+            const shares = parseInt(document.getElementById('add-stock-shares').value) || 0;
+            const costPrice = parseFloat(document.getElementById('add-stock-cost').value) || 0;
+            const note = document.getElementById('add-stock-note').value.trim();
+            
+            if (!code) {
+                alert('请输入股票代码');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/watchlist/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, shares, cost_price: costPrice, note })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeAddStockModal();
+                    loadWatchlist();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('添加失败: ' + error.message);
+            }
+        }
+        
+        // 显示编辑弹窗
+        function showEditStockModal(code, shares, costPrice, note) {
+            const modalHtml = `
+                <div id="edit-stock-modal" class="modal" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center;">
+                    <div class="modal-content" style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; position: relative;">
+                        <span class="close-btn" onclick="closeEditStockModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #999;">&times;</span>
+                        <h3 style="margin-bottom: 20px;">编辑自选股票 - ${code}</h3>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">持仓股数</label>
+                            <input type="number" id="edit-stock-shares" value="${shares}" min="0"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">成本价</label>
+                            <input type="number" id="edit-stock-cost" value="${costPrice}" step="0.01" min="0"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">备注</label>
+                            <input type="text" id="edit-stock-note" value="${note}"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="closeEditStockModal()" style="padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer;">取消</button>
+                            <button onclick="updateStock('${code}')" style="padding: 10px 20px; background: #1890ff; color: white; border: none; border-radius: 6px; cursor: pointer;">保存</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        // 关闭编辑弹窗
+        function closeEditStockModal() {
+            const modal = document.getElementById('edit-stock-modal');
+            if (modal) modal.remove();
+        }
+        
+        // 更新股票
+        async function updateStock(code) {
+            const shares = parseInt(document.getElementById('edit-stock-shares').value);
+            const costPrice = parseFloat(document.getElementById('edit-stock-cost').value);
+            const note = document.getElementById('edit-stock-note').value.trim();
+            
+            try {
+                const response = await fetch('/api/watchlist/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, shares, cost_price: costPrice, note })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeEditStockModal();
+                    loadWatchlist();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('更新失败: ' + error.message);
+            }
+        }
+        
+        // 移除股票
+        async function removeStock(code) {
+            if (!confirm(`确定要从自选中移除 ${code} 吗？`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/watchlist/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadWatchlist();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('移除失败: ' + error.message);
+            }
+        }
+        
+        // 清空自选
+        async function clearAllWatchlist() {
+            if (!confirm('确定要清空所有自选股票吗？此操作不可恢复！')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/watchlist/clear', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadWatchlist();
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('清空失败: ' + error.message);
+            }
+        }
+        
+        // 格式化金额
+        function formatAmount(value) {
+            if (value >= 100000000) {
+                return (value / 100000000).toFixed(2) + '亿';
+            } else if (value >= 10000) {
+                return (value / 10000).toFixed(2) + '万';
+            }
+            return value.toFixed(2);
+        }
+        
+        // 格式化价格
+        function formatPrice(price) {
+            if (price === '-' || price === null || price === undefined) return '-';
+            return parseFloat(price).toFixed(2);
+        }
+        
+        // 格式化百分比
+        function formatPercent(pct) {
+            if (pct === '-' || pct === null || pct === undefined) return '-';
+            return parseFloat(pct).toFixed(2) + '%';
+        }
+        
+        // 格式化盈亏
+        function formatProfit(profit) {
+            if (profit === '-' || profit === null || profit === undefined) return '-';
+            const num = parseFloat(profit);
+            return (num >= 0 ? '+' : '') + num.toFixed(2);
+        }
+        
+        // 防抖函数
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+        
+        // 页面加载时更新自选数量
+        async function updateWatchlistCount() {
+            try {
+                const response = await fetch('/api/watchlist/count');
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('watchlist-count').textContent = result.count;
+                }
+            } catch (error) {
+                console.error('获取自选数量失败:', error);
+            }
         }
         
         // ==================== 原有功能 ====================
@@ -2334,6 +2748,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadContent('realtime');
             loadIndices();  // 加载指数数据
+            updateWatchlistCount();  // 更新自选数量
             // 更新顶部市场统计卡片
             updateMarketStatsCard();
         });

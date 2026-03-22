@@ -136,6 +136,30 @@ class StockListManager:
         df = self.get_all_stocks()
         return df[df['industry'] == industry]
     
+    def get_stock_by_code(self, code: str) -> Dict:
+        """
+        根据股票代码获取股票信息
+        
+        Args:
+            code: 股票代码
+        
+        Returns:
+            Dict: 股票信息，包含code, name, market, industry等
+        """
+        df = self.get_all_stocks()
+        result = df[df['code'] == code]
+        
+        if len(result) > 0:
+            row = result.iloc[0]
+            return {
+                'code': row['code'],
+                'name': row['name'],
+                'market': row['market'],
+                'market_name': row.get('market_name', ''),
+                'industry': row['industry']
+            }
+        return None
+    
     def get_market_statistics(self) -> Dict:
         """获取市场统计信息"""
         df = self.get_all_stocks()
