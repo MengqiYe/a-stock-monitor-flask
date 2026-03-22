@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A股即时监视系统</title>
     <style>
-        :root {
+        /* ==================== 配色方案 ==================== */
+        
+        /* Darcula 深色主题 */
+        :root, [data-theme="darcula"] {
             --bg-primary: #2b2b2b;
             --bg-secondary: #3c3f41;
             --bg-tertiary: #464646;
@@ -16,6 +19,117 @@
             --accent-secondary: #cc7832;
             --border-color: #555555;
             --shadow: rgba(0, 0, 0, 0.4);
+            --card-up: #4a2d2d;
+            --card-down: #2d4a2d;
+            --card-neutral: #3c3f41;
+            --up-color: #f5222d;
+            --down-color: #52c41a;
+        }
+        
+        /* 莫兰迪粉灰 - 温柔优雅 */
+        [data-theme="morandi-pink"] {
+            --bg-primary: #e8ddd4;
+            --bg-secondary: #f2ebe6;
+            --bg-tertiary: #d4c4b5;
+            --text-primary: #5a4a42;
+            --text-secondary: #7a6a62;
+            --text-muted: #9a8a82;
+            --accent-primary: #c4a4a4;
+            --accent-secondary: #d4a574;
+            --border-color: #c4b4a4;
+            --shadow: rgba(90, 74, 66, 0.15);
+            --card-up: #e8d4d4;
+            --card-down: #d4e8d8;
+            --card-neutral: #e8e4e0;
+            --up-color: #c46a6a;
+            --down-color: #6aa87a;
+        }
+        
+        /* 莫兰迪蓝灰 - 冷静沉稳 */
+        [data-theme="morandi-blue"] {
+            --bg-primary: #d8dce2;
+            --bg-secondary: #e8ecf2;
+            --bg-tertiary: #c4c8ce;
+            --text-primary: #4a5262;
+            --text-secondary: #6a7282;
+            --text-muted: #8a92a2;
+            --accent-primary: #7a8aa4;
+            --accent-secondary: #a4a08a;
+            --border-color: #b4b8c2;
+            --shadow: rgba(74, 82, 98, 0.15);
+            --card-up: #e8d8dc;
+            --card-down: #d8e8e4;
+            --card-neutral: #e4e8ec;
+            --up-color: #a46a7a;
+            --down-color: #6a9a8a;
+        }
+        
+        /* 莫兰迪绿灰 - 自然清新 */
+        [data-theme="morandi-green"] {
+            --bg-primary: #d8e2dc;
+            --bg-secondary: #e8f2ec;
+            --bg-tertiary: #c4d2ca;
+            --text-primary: #4a5252;
+            --text-secondary: #6a7272;
+            --text-muted: #8a9292;
+            --accent-primary: #7a9a8a;
+            --accent-secondary: #a4a47a;
+            --border-color: #b4c2b8;
+            --shadow: rgba(74, 82, 82, 0.15);
+            --card-up: #e8dcd8;
+            --card-down: #d8e8dc;
+            --card-neutral: #e4ece8;
+            --up-color: #a47a6a;
+            --down-color: #6a9a7a;
+        }
+        
+        /* 配色选择器样式 */
+        .theme-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border-radius: 25px;
+            box-shadow: 0 2px 10px var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+        
+        .theme-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .theme-btn:hover {
+            transform: scale(1.15);
+        }
+        
+        .theme-btn.active {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 8px var(--accent-primary);
+        }
+        
+        .theme-btn.darcula {
+            background: linear-gradient(135deg, #2b2b2b 50%, #6897bb 50%);
+        }
+        
+        .theme-btn.morandi-pink {
+            background: linear-gradient(135deg, #e8ddd4 50%, #c4a4a4 50%);
+        }
+        
+        .theme-btn.morandi-blue {
+            background: linear-gradient(135deg, #d8dce2 50%, #7a8aa4 50%);
+        }
+        
+        .theme-btn.morandi-green {
+            background: linear-gradient(135deg, #d8e2dc 50%, #7a9a8a 50%);
         }
         
         * {
@@ -30,6 +144,7 @@
             min-height: 100vh;
             padding: 20px;
             color: var(--text-primary);
+            transition: background 0.3s ease, color 0.3s ease;
         }
         
         .container {
@@ -41,12 +156,13 @@
             text-align: center;
             color: var(--text-primary);
             margin-bottom: 30px;
+            padding-right: 150px;
         }
         
         header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
         }
         
         header p {
@@ -179,12 +295,12 @@
         }
         
         .change-positive {
-            color: #f5222d;
+            color: var(--up-color);
             font-weight: 600;
         }
         
         .change-negative {
-            color: #52c41a;
+            color: var(--down-color);
             font-weight: 600;
         }
         
@@ -477,6 +593,14 @@
     </style>
 </head>
 <body>
+    <!-- 配色方案选择器 -->
+    <div class="theme-selector" title="选择配色方案">
+        <button class="theme-btn darcula active" data-theme="darcula" title="Darcula 深色"></button>
+        <button class="theme-btn morandi-pink" data-theme="morandi-pink" title="莫兰迪粉灰"></button>
+        <button class="theme-btn morandi-blue" data-theme="morandi-blue" title="莫兰迪蓝灰"></button>
+        <button class="theme-btn morandi-green" data-theme="morandi-green" title="莫兰迪绿灰"></button>
+    </div>
+    
     <div class="container">
         <header>
             <h1>A股即时监视系统</h1>
@@ -516,6 +640,41 @@
     </div>
     
     <script>
+        // ==================== 配色方案切换 ====================
+        
+        // 初始化配色方案（从localStorage读取或使用默认值）
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'darcula';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeButtons(savedTheme);
+        }
+        
+        // 切换配色方案
+        function switchTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            updateThemeButtons(theme);
+        }
+        
+        // 更新配色按钮状态
+        function updateThemeButtons(activeTheme) {
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === activeTheme);
+            });
+        }
+        
+        // 绑定配色按钮事件
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                switchTheme(btn.dataset.theme);
+            });
+        });
+        
+        // 页面加载时初始化配色
+        initTheme();
+        
+        // ==================== 主要功能代码 ====================
+        
         // 当前标签页
         let currentTab = 'realtime';
         
@@ -1184,7 +1343,10 @@
             
             // 计算市场情绪条
             const sentimentWidth = stats.market_sentiment || 50;
-            const sentimentColor = sentimentWidth >= 50 ? '#f5222d' : '#52c41a';
+            // 使用CSS变量获取颜色值
+            const upColor = getComputedStyle(document.documentElement).getPropertyValue('--up-color').trim() || '#f5222d';
+            const downColor = getComputedStyle(document.documentElement).getPropertyValue('--down-color').trim() || '#52c41a';
+            const sentimentColor = sentimentWidth >= 50 ? upColor : downColor;
             
             let html = `
                 <button class="btn refresh-btn" onclick="loadMarketOverview()">刷新数据</button>
@@ -1192,42 +1354,42 @@
                 
                 <!-- 市场概况卡片 -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                    <div style="background: linear-gradient(135deg, #3d4f6f 0%, #2b3e5a 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
+                    <div style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
                         <div style="font-size: 0.85rem; opacity: 0.9;">股票总数</div>
                         <div style="font-size: 1.8rem; font-weight: bold;">${stats.total_stocks || '-'}</div>
                     </div>
-                    <div style="background: #4a2d2d; padding: 20px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 0.85rem; color: #a9b7c6;">上涨</div>
-                        <div style="font-size: 1.8rem; font-weight: bold; color: #f5222d;">${stats.up_count || 0}</div>
+                    <div style="background: var(--card-up); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">上涨</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--up-color);">${stats.up_count || 0}</div>
                     </div>
-                    <div style="background: #2d4a2d; padding: 20px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 0.85rem; color: #a9b7c6;">下跌</div>
-                        <div style="font-size: 1.8rem; font-weight: bold; color: #52c41a;">${stats.down_count || 0}</div>
+                    <div style="background: var(--card-down); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">下跌</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--down-color);">${stats.down_count || 0}</div>
                     </div>
-                    <div style="background: #3c3f41; padding: 20px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 0.85rem; color: #a9b7c6;">平盘</div>
-                        <div style="font-size: 1.8rem; font-weight: bold; color: #a9b7c6;">${stats.flat_count || 0}</div>
+                    <div style="background: var(--card-neutral); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">平盘</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--text-primary);">${stats.flat_count || 0}</div>
                     </div>
-                    <div style="background: #4a2d2d; padding: 20px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 0.85rem; color: #a9b7c6;">涨停</div>
-                        <div style="font-size: 1.8rem; font-weight: bold; color: #f5222d;">${stats.limit_up || 0}</div>
+                    <div style="background: var(--card-up); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">涨停</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--up-color);">${stats.limit_up || 0}</div>
                     </div>
-                    <div style="background: #2d4a2d; padding: 20px; border-radius: 10px; text-align: center;">
-                        <div style="font-size: 0.85rem; color: #a9b7c6;">跌停</div>
-                        <div style="font-size: 1.8rem; font-weight: bold; color: #52c41a;">${stats.limit_down || 0}</div>
+                    <div style="background: var(--card-down); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">跌停</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--down-color);">${stats.limit_down || 0}</div>
                     </div>
                 </div>
                 
                 <!-- 市场情绪 -->
-                <div style="background: #3c3f41; padding: 20px; border-radius: 10px; margin-bottom: 25px;">
+                <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 10px; margin-bottom: 25px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span style="font-weight: 500; color: #a9b7c6;">市场情绪指标</span>
+                        <span style="font-weight: 500; color: var(--text-primary);">市场情绪指标</span>
                         <span style="font-weight: bold; color: ${sentimentColor};">${sentimentWidth}%</span>
                     </div>
-                    <div style="background: #555555; border-radius: 10px; height: 20px; overflow: hidden;">
+                    <div style="background: var(--border-color); border-radius: 10px; height: 20px; overflow: hidden;">
                         <div style="width: ${sentimentWidth}%; height: 100%; background: ${sentimentColor}; border-radius: 10px; transition: width 0.5s;"></div>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.8rem; color: #888888;">
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.8rem; color: var(--text-muted);">
                         <span>极度悲观</span>
                         <span>中性</span>
                         <span>极度乐观</span>
@@ -1321,8 +1483,8 @@
                     <div>
                         <h3 style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #6897bb;">行业板块</h3>
                         
-                        <h4 style="margin-bottom: 10px; color: #f5222d;">涨幅TOP10</h4>
-                        <div style="background: #4a2d2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 10px; color: var(--up-color);">涨幅TOP10</h4>
+                        <div style="background: var(--card-up); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
             `;
             
             // 行业涨幅榜
@@ -1346,8 +1508,8 @@
             html += `
                         </div>
                         
-                        <h4 style="margin-bottom: 10px; color: #52c41a;">跌幅TOP10</h4>
-                        <div style="background: #2d4a2d; border-radius: 8px; padding: 15px;">
+                        <h4 style="margin-bottom: 10px; color: var(--down-color);">跌幅TOP10</h4>
+                        <div style="background: var(--card-down); border-radius: 8px; padding: 15px;">
             `;
             
             // 行业跌幅榜
@@ -1376,8 +1538,8 @@
                     <div>
                         <h3 style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #cc7832;">概念板块</h3>
                         
-                        <h4 style="margin-bottom: 10px; color: #f5222d;">涨幅TOP10</h4>
-                        <div style="background: #4a2d2d; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 10px; color: var(--up-color);">涨幅TOP10</h4>
+                        <div style="background: var(--card-up); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
             `;
             
             // 概念涨幅榜
@@ -1401,8 +1563,8 @@
             html += `
                         </div>
                         
-                        <h4 style="margin-bottom: 10px; color: #52c41a;">跌幅TOP10</h4>
-                        <div style="background: #2d4a2d; border-radius: 8px; padding: 15px;">
+                        <h4 style="margin-bottom: 10px; color: var(--down-color);">跌幅TOP10</h4>
+                        <div style="background: var(--card-down); border-radius: 8px; padding: 15px;">
             `;
             
             // 概念跌幅榜
@@ -1513,7 +1675,7 @@
                         ${currentGroupId ? `当前分组: <strong>${groups.find(g => g.id === currentGroupId)?.name || '未知'}</strong> | ` : ''}
                         共 <strong>${filteredStocks.length}</strong> 只股票
                         ${totalValue > 0 ? `| 总市值 <strong>${formatAmount(totalValue)}</strong>` : ''}
-                        ${totalProfit !== 0 ? `| 总盈亏 <strong style="color: ${totalProfit >= 0 ? '#f5222d' : '#52c41a'}">${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}</strong>` : ''}
+                        ${totalProfit !== 0 ? `| 总盈亏 <strong style="color: ${totalProfit >= 0 ? 'var(--up-color)' : 'var(--down-color)'}">${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}</strong>` : ''}
                     </span>
                 </div>
                 
@@ -2506,7 +2668,7 @@
                     <div id="search-suggestions" style="display: none;"></div>
                 </div>
                 <div id="search-results" style="margin-top: 20px;"></div>
-                <div style="margin-top: 15px; padding: 15px; background: #2d3a4a; border-radius: 8px; font-size: 0.9rem; color: #888888;">
+                <div style="margin-top: 15px; padding: 15px; background: var(--card-neutral); border-radius: 8px; font-size: 0.9rem; color: var(--text-secondary);">
                     💡 提示：输入股票代码或名称即可实时搜索，支持模糊匹配。例如输入"茅台"或"600519"。
                 </div>
             `;
@@ -2632,8 +2794,8 @@
                     <div onclick="selectStock('${stock.code}', '${stock.name.replace(/'/g, "\\'")}')" 
                          style="padding: 12px 15px; border-bottom: 1px solid #555555; cursor: pointer; 
                                 display: flex; justify-content: space-between; align-items: center;"
-                         onmouseover="this.style.background='#464646'" 
-                         onmouseout="this.style.background='#3c3f41'">
+                         onmouseover="this.style.background='var(--bg-tertiary)'" 
+                         onmouseout="this.style.background='var(--bg-secondary)'">
                         <div>
                             <span class="stock-code" style="margin-right: 10px;">${stock.code}</span>
                             <span class="stock-name">${stock.name}</span>
@@ -2815,7 +2977,7 @@
             
             content.innerHTML = `
                 <h2 style="margin-bottom: 20px;">量化策略回测</h2>
-                <div style="background: #3c3f41; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
                     <h3 style="margin-bottom: 15px;">回测参数</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <div>
@@ -2840,7 +3002,7 @@
                 </div>
                 <div id="quant-results"></div>
                 
-                <div style="margin-top: 30px; padding: 20px; background: #3c3f41; border-radius: 8px;">
+                <div style="margin-top: 30px; padding: 20px; background: var(--bg-tertiary); border-radius: 8px;">
                     <h3 style="margin-bottom: 15px;">技术指标计算</h3>
                     <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
                         <div>
@@ -2911,35 +3073,35 @@
             let html = `
                 <h3 style="margin-bottom: 15px;">回测结果 - ${data.symbol}</h3>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                    <div style="background: #464646; padding: 15px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #a9b7c6;">总收益率</div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">总收益率</div>
                         <div class="${returnClass}" style="font-size: 1.8rem; font-weight: bold;">${returnSymbol}${metrics.total_return}%</div>
                     </div>
-                    <div style="background: #464646; padding: 15px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #a9b7c6;">年化收益率</div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">年化收益率</div>
                         <div style="font-size: 1.5rem; font-weight: bold;">${metrics.annual_return}%</div>
                     </div>
-                    <div style="background: #464646; padding: 15px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #a9b7c6;">最大回撤</div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">最大回撤</div>
                         <div class="change-negative" style="font-size: 1.5rem; font-weight: bold;">-${metrics.max_drawdown}%</div>
                     </div>
-                    <div style="background: #464646; padding: 15px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #a9b7c6;">夏普比率</div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">夏普比率</div>
                         <div style="font-size: 1.5rem; font-weight: bold;">${metrics.sharpe_ratio}</div>
                     </div>
-                    <div style="background: #464646; padding: 15px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #a9b7c6;">胜率</div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">胜率</div>
                         <div style="font-size: 1.5rem; font-weight: bold;">${metrics.win_rate}%</div>
                     </div>
-                    <div style="background: #464646; padding: 15px; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.9rem; color: #a9b7c6;">总交易次数</div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">总交易次数</div>
                         <div style="font-size: 1.5rem; font-weight: bold;">${metrics.total_trades}</div>
                     </div>
                 </div>
             `;
             
             if (data.note) {
-                html += `<div style="padding: 10px; background: #4a3a2d; border-radius: 4px; margin-top: 10px;">⚠️ ${data.note}</div>`;
+                html += `<div style="padding: 10px; background: var(--card-neutral); border-radius: 4px; margin-top: 10px;">⚠️ ${data.note}</div>`;
             }
             
             container.innerHTML = html;
