@@ -16,6 +16,8 @@ A股即时监视系统 - Flask主应用
 """
 
 import os
+import threading
+import time
 import pandas as pd
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
@@ -2131,6 +2133,34 @@ if __name__ == '__main__':
     # 从环境变量获取端口号，默认为5000
     # 这允许在不同环境中灵活配置端口
     port = int(os.environ.get('DEPLOY_RUN_PORT', 5000))
+    
+    # ==================== 缓存预热 ====================
+    def warmup_cache():
+        """
+        后台预热数据缓存
+        
+        在应用启动后异步加载常用数据到缓存中，
+        避免用户第一次访问时等待数据获取
+        """
+        print("🔄 正在预热数据缓存...")
+        try:
+            # 预热股票列表缓存
+            start = time.time()
+            stock_list_manager.get_all_stocks()
+            print(f"   ✅ 股票列表缓存预热完成 ({time.time()-start:.2f}s)")
+            
+            # 预热实时行情缓存
+            start = time.time()
+            fetcher.get_realtime_quotes()
+            print(f"   ✅ 实时行情缓存预热完成 ({time.time()-start:.2f}s)")
+            
+            print("🎉 缓存预热完成！所有数据已就绪")
+        except Exception as e:
+            print(f"   ⚠️ 缓存预热失败: {e}")
+    
+    # 在后台线程中预热缓存
+    warmup_thread = threading.Thread(target=warmup_cache, daemon=True)
+    warmup_thread.start()
     
     # 打印启动信息
     print(f"""
