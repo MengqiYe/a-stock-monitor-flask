@@ -2166,15 +2166,38 @@
         
         // ==================== 原有功能 ====================
         
-        // 更新统计数据（已移除顶部统计卡片，保留函数避免报错）
+        // 更新统计数据
         function updateStats(data) {
-            // 顶部统计卡片已移除，此函数保留为空
+            document.getElementById('total-stocks').textContent = data.length;
+            
+            const upCount = data.filter(s => s.change_pct > 0).length;
+            const downCount = data.filter(s => s.change_pct < 0).length;
+            
+            document.getElementById('up-stocks').textContent = upCount;
+            document.getElementById('down-stocks').textContent = downCount;
+            
+            const now = new Date();
+            document.getElementById('update-time').textContent = 
+                now.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
         }
         
-        // 更新顶部市场统计卡片（已移除顶部统计卡片，保留函数避免报错）
+        // 更新顶部市场统计卡片
         async function updateMarketStatsCard() {
-            // 顶部统计卡片已移除，此函数保留为空
-        }
+            try {
+                const response = await fetch('/api/market/statistics');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const stats = result.data;
+                    document.getElementById('total-stocks').textContent = stats.total_stocks || '-';
+                    document.getElementById('up-stocks').textContent = stats.up_count || 0;
+                    document.getElementById('down-stocks').textContent = stats.down_count || 0;
+                    document.getElementById('update-time').textContent = 
+                        stats.update_time ? stats.update_time.split(' ')[1] : new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+                }
+            } catch (error) {
+                console.error('更新市场统计失败:', error);
+            }
         }
         
         // 渲染实时行情表格
