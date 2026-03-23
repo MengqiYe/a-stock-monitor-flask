@@ -7,7 +7,7 @@
     <style>
         /* ==================== 配色方案 ==================== */
         
-        /* Darcula 深色主题 */
+        /* Darcula 深色主题 - 深灰+橙色强调 */
         :root, [data-theme="darcula"] {
             --bg-primary: #2b2b2b;
             --bg-secondary: #3c3f41;
@@ -83,53 +83,239 @@
             --down-color: #6a9a7a;
         }
         
-        /* 配色选择器样式 */
+        /* Nord 北欧冷色 - 冰川蓝灰 */
+        [data-theme="nord"] {
+            --bg-primary: #2e3440;
+            --bg-secondary: #3b4252;
+            --bg-tertiary: #434c5e;
+            --text-primary: #eceff4;
+            --text-secondary: #d8dee9;
+            --text-muted: #4c566a;
+            --accent-primary: #88c0d0;
+            --accent-secondary: #81a1c1;
+            --border-color: #4c566a;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --card-up: #4a3a42;
+            --card-down: #3a4a42;
+            --card-neutral: #3b4252;
+            --up-color: #bf616a;
+            --down-color: #a3be8c;
+        }
+        
+        /* Gruvbox 复古暖色 - 黄橙棕 */
+        [data-theme="gruvbox"] {
+            --bg-primary: #282828;
+            --bg-secondary: #3c3836;
+            --bg-tertiary: #504945;
+            --text-primary: #ebdbb2;
+            --text-secondary: #d5c4a1;
+            --text-muted: #928374;
+            --accent-primary: #fe8019;
+            --accent-secondary: #fabd2f;
+            --border-color: #665c54;
+            --shadow: rgba(0, 0, 0, 0.35);
+            --card-up: #4a3636;
+            --card-down: #364a3a;
+            --card-neutral: #3c3836;
+            --up-color: #fb4934;
+            --down-color: #b8bb26;
+        }
+        
+        /* Solarized 经典护眼 - 科学配色 */
+        [data-theme="solarized"] {
+            --bg-primary: #002b36;
+            --bg-secondary: #073642;
+            --bg-tertiary: #094a5a;
+            --text-primary: #839496;
+            --text-secondary: #657b83;
+            --text-muted: #586e75;
+            --accent-primary: #268bd2;
+            --accent-secondary: #2aa198;
+            --border-color: #094a5a;
+            --shadow: rgba(0, 0, 0, 0.4);
+            --card-up: #4a2a2a;
+            --card-down: #2a4a3a;
+            --card-neutral: #073642;
+            --up-color: #dc322f;
+            --down-color: #859900;
+        }
+        
+        /* Tokyo Night 东京夜景 - 深紫蓝 */
+        [data-theme="tokyo-night"] {
+            --bg-primary: #1a1b26;
+            --bg-secondary: #24283b;
+            --bg-tertiary: #414868;
+            --text-primary: #c0caf5;
+            --text-secondary: #9aa5ce;
+            --text-muted: #565f89;
+            --accent-primary: #7aa2f7;
+            --accent-secondary: #bb9af7;
+            --border-color: #414868;
+            --shadow: rgba(0, 0, 0, 0.35);
+            --card-up: #4a2a3a;
+            --card-down: #2a4a4a;
+            --card-neutral: #24283b;
+            --up-color: #f7768e;
+            --down-color: #9ece6a;
+        }
+        
+        /* One Dark Atom经典 - 深灰蓝 */
+        [data-theme="one-dark"] {
+            --bg-primary: #282c34;
+            --bg-secondary: #21252b;
+            --bg-tertiary: #3e4451;
+            --text-primary: #abb2bf;
+            --text-secondary: #828997;
+            --text-muted: #5c6370;
+            --accent-primary: #61afef;
+            --accent-secondary: #98c379;
+            --border-color: #3e4451;
+            --shadow: rgba(0, 0, 0, 0.35);
+            --card-up: #4a2a2a;
+            --card-down: #2a4a2a;
+            --card-neutral: #21252b;
+            --up-color: #e06c75;
+            --down-color: #98c379;
+        }
+        
+        /* Dracula 暗夜紫 - 时尚流行 */
+        [data-theme="dracula"] {
+            --bg-primary: #282a36;
+            --bg-secondary: #44475a;
+            --bg-tertiary: #5a5d7a;
+            --text-primary: #f8f8f2;
+            --text-secondary: #bd93f9;
+            --text-muted: #6272a4;
+            --accent-primary: #bd93f9;
+            --accent-secondary: #ff79c6;
+            --border-color: #6272a4;
+            --shadow: rgba(0, 0, 0, 0.35);
+            --card-up: #5a3a4a;
+            --card-down: #3a5a4a;
+            --card-neutral: #44475a;
+            --up-color: #ff5555;
+            --down-color: #50fa7b;
+        }
+        
+        /* 配色选择器样式 - 折叠下拉 */
         .theme-selector {
             position: fixed;
             top: 20px;
             right: 20px;
             z-index: 1000;
+        }
+        
+        .theme-toggle {
             display: flex;
+            align-items: center;
             gap: 8px;
-            padding: 10px;
+            padding: 10px 16px;
             background: var(--bg-secondary);
-            border-radius: 25px;
-            box-shadow: 0 2px 10px var(--shadow);
             border: 1px solid var(--border-color);
-        }
-        
-        .theme-btn {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            border: 2px solid transparent;
+            border-radius: 8px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px var(--shadow);
         }
         
-        .theme-btn:hover {
-            transform: scale(1.15);
+        .theme-toggle:hover {
+            background: var(--bg-tertiary);
         }
         
-        .theme-btn.active {
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 8px var(--accent-primary);
+        .theme-toggle-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            border: 2px solid var(--border-color);
         }
         
-        .theme-btn.darcula {
-            background: linear-gradient(135deg, #2b2b2b 50%, #cc7832 50%);
+        .theme-toggle-arrow {
+            font-size: 0.75rem;
+            transition: transform 0.2s ease;
         }
         
-        .theme-btn.morandi-pink {
-            background: linear-gradient(135deg, #e8ddd4 50%, #c4a4a4 50%);
+        .theme-selector.open .theme-toggle-arrow {
+            transform: rotate(180deg);
         }
         
-        .theme-btn.morandi-blue {
-            background: linear-gradient(135deg, #d8dce2 50%, #7a8aa4 50%);
+        .theme-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 200px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px var(--shadow);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            max-height: 400px;
+            overflow-y: auto;
         }
         
-        .theme-btn.morandi-green {
-            background: linear-gradient(135deg, #d8e2dc 50%, #7a9a8a 50%);
+        .theme-selector.open .theme-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .theme-dropdown-header {
+            padding: 12px 16px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .theme-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        
+        .theme-option:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .theme-option.active {
+            background: var(--bg-tertiary);
+        }
+        
+        .theme-option.active::after {
+            content: '✓';
+            margin-left: auto;
+            color: var(--accent-primary);
+            font-size: 0.85rem;
+        }
+        
+        .theme-color-preview {
+            display: flex;
+            gap: 3px;
+        }
+        
+        .theme-color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .theme-option-name {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+        
+        .theme-option-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
         
         * {
@@ -594,11 +780,125 @@
 </head>
 <body>
     <!-- 配色方案选择器 -->
-    <div class="theme-selector" title="选择配色方案">
-        <button class="theme-btn darcula active" data-theme="darcula" title="Darcula 深色"></button>
-        <button class="theme-btn morandi-pink" data-theme="morandi-pink" title="莫兰迪粉灰"></button>
-        <button class="theme-btn morandi-blue" data-theme="morandi-blue" title="莫兰迪蓝灰"></button>
-        <button class="theme-btn morandi-green" data-theme="morandi-green" title="莫兰迪绿灰"></button>
+    <div class="theme-selector" id="themeSelector">
+        <div class="theme-toggle" onclick="toggleThemeDropdown()">
+            <div class="theme-toggle-icon"></div>
+            <span>配色方案</span>
+            <span class="theme-toggle-arrow">▼</span>
+        </div>
+        <div class="theme-dropdown">
+            <div class="theme-dropdown-header">选择配色方案</div>
+            <div class="theme-option active" data-theme="darcula" onclick="switchTheme('darcula')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #2b2b2b;"></div>
+                    <div class="theme-color-dot" style="background: #cc7832;"></div>
+                    <div class="theme-color-dot" style="background: #a9b7c6;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">Darcula</div>
+                    <div class="theme-option-desc">深灰+橙色强调</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="morandi-pink" onclick="switchTheme('morandi-pink')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #e8ddd4;"></div>
+                    <div class="theme-color-dot" style="background: #c4a4a4;"></div>
+                    <div class="theme-color-dot" style="background: #5a4a42;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">莫兰迪粉灰</div>
+                    <div class="theme-option-desc">温柔优雅</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="morandi-blue" onclick="switchTheme('morandi-blue')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #d8dce2;"></div>
+                    <div class="theme-color-dot" style="background: #7a8aa4;"></div>
+                    <div class="theme-color-dot" style="background: #4a5262;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">莫兰迪蓝灰</div>
+                    <div class="theme-option-desc">冷静沉稳</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="morandi-green" onclick="switchTheme('morandi-green')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #d8e2dc;"></div>
+                    <div class="theme-color-dot" style="background: #7a9a8a;"></div>
+                    <div class="theme-color-dot" style="background: #4a5252;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">莫兰迪绿灰</div>
+                    <div class="theme-option-desc">自然清新</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="nord" onclick="switchTheme('nord')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #2e3440;"></div>
+                    <div class="theme-color-dot" style="background: #88c0d0;"></div>
+                    <div class="theme-color-dot" style="background: #eceff4;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">Nord</div>
+                    <div class="theme-option-desc">北欧冰川蓝灰</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="gruvbox" onclick="switchTheme('gruvbox')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #282828;"></div>
+                    <div class="theme-color-dot" style="background: #fe8019;"></div>
+                    <div class="theme-color-dot" style="background: #ebdbb2;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">Gruvbox</div>
+                    <div class="theme-option-desc">复古黄橙棕</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="solarized" onclick="switchTheme('solarized')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #002b36;"></div>
+                    <div class="theme-color-dot" style="background: #268bd2;"></div>
+                    <div class="theme-color-dot" style="background: #839496;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">Solarized</div>
+                    <div class="theme-option-desc">经典护眼科学配色</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="tokyo-night" onclick="switchTheme('tokyo-night')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #1a1b26;"></div>
+                    <div class="theme-color-dot" style="background: #7aa2f7;"></div>
+                    <div class="theme-color-dot" style="background: #c0caf5;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">Tokyo Night</div>
+                    <div class="theme-option-desc">东京夜景深紫蓝</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="one-dark" onclick="switchTheme('one-dark')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #282c34;"></div>
+                    <div class="theme-color-dot" style="background: #61afef;"></div>
+                    <div class="theme-color-dot" style="background: #abb2bf;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">One Dark</div>
+                    <div class="theme-option-desc">Atom经典深灰蓝</div>
+                </div>
+            </div>
+            <div class="theme-option" data-theme="dracula" onclick="switchTheme('dracula')">
+                <div class="theme-color-preview">
+                    <div class="theme-color-dot" style="background: #282a36;"></div>
+                    <div class="theme-color-dot" style="background: #bd93f9;"></div>
+                    <div class="theme-color-dot" style="background: #f8f8f2;"></div>
+                </div>
+                <div>
+                    <div class="theme-option-name">Dracula</div>
+                    <div class="theme-option-desc">暗夜紫时尚流行</div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="container">
@@ -646,28 +946,37 @@
         function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'darcula';
             document.documentElement.setAttribute('data-theme', savedTheme);
-            updateThemeButtons(savedTheme);
+            updateThemeOptions(savedTheme);
         }
         
         // 切换配色方案
         function switchTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
-            updateThemeButtons(theme);
+            updateThemeOptions(theme);
+            // 关闭下拉菜单
+            document.getElementById('themeSelector').classList.remove('open');
         }
         
-        // 更新配色按钮状态
-        function updateThemeButtons(activeTheme) {
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.theme === activeTheme);
+        // 更新配色选项状态
+        function updateThemeOptions(activeTheme) {
+            document.querySelectorAll('.theme-option').forEach(option => {
+                option.classList.toggle('active', option.dataset.theme === activeTheme);
             });
         }
         
-        // 绑定配色按钮事件
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                switchTheme(btn.dataset.theme);
-            });
+        // 切换下拉菜单
+        function toggleThemeDropdown() {
+            const selector = document.getElementById('themeSelector');
+            selector.classList.toggle('open');
+        }
+        
+        // 点击外部关闭下拉菜单
+        document.addEventListener('click', (e) => {
+            const selector = document.getElementById('themeSelector');
+            if (!selector.contains(e.target)) {
+                selector.classList.remove('open');
+            }
         });
         
         // 页面加载时初始化配色
