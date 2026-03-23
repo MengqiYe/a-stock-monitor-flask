@@ -29,6 +29,7 @@ from modules.quant_engine import quant_engine  # 量化交易引擎模块
 from modules.stock_list import MAIN_INDICES, get_index_info, get_index_components  # 指数数据
 from modules.full_stock_list import stock_list_manager, MARKET_CATEGORIES, INDUSTRY_CATEGORIES  # 完整股票列表
 from modules.watchlist import watchlist_manager  # 自选股票管理
+from modules.futures import futures_fetcher, EXCHANGE_INFO, PRODUCT_CATEGORIES  # 期货市场数据
 
 
 # ==================== Flask应用初始化 ====================
@@ -2099,6 +2100,291 @@ def get_all_markets():
         }), 500
 
 
+# ==================== 期货市场API ====================
+
+@app.route('/api/futures/realtime', methods=['GET'])
+def get_futures_realtime():
+    """
+    获取期货实时行情
+    
+    API接口: GET /api/futures/realtime
+    
+    Query参数:
+        exchange (str, 可选): 交易所代码（shfe/dce/czce/cffex/gfex/ine）
+        category (str, 可选): 品种分类（有色金属/贵金属/黑色系等）
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 期货数据列表
+            - count: 合约总数
+            - timestamp: 数据时间戳
+    """
+    try:
+        exchange = request.args.get('exchange', '')
+        category = request.args.get('category', '')
+        
+        if exchange:
+            df = futures_fetcher.get_quotes_by_exchange(exchange)
+        elif category:
+            df = futures_fetcher.get_quotes_by_category(category)
+        else:
+            df = futures_fetcher.get_realtime_quotes()
+        
+        if df.empty:
+            return jsonify({
+                'success': False,
+                'message': '获取期货数据失败'
+            })
+        
+        # 转换数据
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data),
+            'timestamp': time.time()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/futures/main', methods=['GET'])
+def get_futures_main():
+    """
+    获取主力合约列表
+    
+    API接口: GET /api/futures/main
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 主力合约列表
+            - count: 合约总数
+    """
+    try:
+        df = futures_fetcher.get_main_contracts()
+        
+        if df.empty:
+            return jsonify({
+                'success': False,
+                'message': '获取主力合约失败'
+            })
+        
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/futures/stats', methods=['GET'])
+def get_futures_stats():
+    """
+    获取期货市场统计
+    
+    API接口: GET /api/futures/stats
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 市场统计数据
+                - total_contracts: 合约总数
+                - up_count: 上涨合约数
+                - down_count: 下跌合约数
+                - flat_count: 平盘合约数
+                - limit_up: 涨停数
+                - limit_down: 跌停数
+                - exchange_stats: 各交易所统计
+    """
+    try:
+        stats = futures_fetcher.get_market_stats()
+        exchange_stats = futures_fetcher.get_exchange_stats()
+        
+        stats['exchange_stats'] = exchange_stats
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/futures/top', methods=['GET'])
+def get_futures_top():
+    """
+    获取期货排行榜
+    
+    API接口: GET /api/futures/top
+    
+    Query参数:
+        type (str): 排行类型（gainers/losers/volume/position）
+        n (int): 返回数量，默认10
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 排行数据
+            - type: 排行类型
+    """
+    try:
+        top_type = request.args.get('type', 'gainers')
+        n = int(request.args.get('n', 10))
+        
+        if top_type == 'gainers':
+            df = futures_fetcher.get_top_gainers(n)
+        elif top_type == 'losers':
+            df = futures_fetcher.get_top_losers(n)
+        elif top_type == 'volume':
+            df = futures_fetcher.get_top_volume(n)
+        elif top_type == 'position':
+            df = futures_fetcher.get_top_position(n)
+        else:
+            df = futures_fetcher.get_top_gainers(n)
+        
+        if df.empty:
+            return jsonify({
+                'success': False,
+                'message': '获取排行数据失败'
+            })
+        
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'type': top_type,
+            'count': len(data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/futures/exchanges', methods=['GET'])
+def get_futures_exchanges():
+    """
+    获取交易所信息
+    
+    API接口: GET /api/futures/exchanges
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 交易所信息列表
+    """
+    try:
+        exchanges = []
+        for code, info in EXCHANGE_INFO.items():
+            exchanges.append({
+                'code': code,
+                'name': info['name'],
+                'short_name': info['short_name'],
+                'products': info['products']
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': exchanges
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/futures/categories', methods=['GET'])
+def get_futures_categories():
+    """
+    获取品种分类信息
+    
+    API接口: GET /api/futures/categories
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 品种分类信息
+    """
+    try:
+        categories = []
+        for name, products in PRODUCT_CATEGORIES.items():
+            categories.append({
+                'name': name,
+                'products': products
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': categories
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/futures/global', methods=['GET'])
+def get_futures_global():
+    """
+    获取全球期货行情
+    
+    API接口: GET /api/futures/global
+    
+    Returns:
+        JSON响应:
+            - success: 是否成功
+            - data: 全球期货数据列表
+            - count: 合约总数
+    """
+    try:
+        df = futures_fetcher.get_global_futures()
+        
+        if df.empty:
+            return jsonify({
+                'success': False,
+                'message': '获取全球期货数据失败'
+            })
+        
+        data = df.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'data': data,
+            'count': len(data)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 # ==================== 错误处理 ====================
 
 @app.errorhandler(404)
@@ -2154,6 +2440,12 @@ if __name__ == '__main__':
             fetcher.get_realtime_quotes()
             print(f"   ✅ 实时行情缓存预热完成 ({time.time()-start:.2f}s)")
             
+            # 预热期货数据缓存
+            start = time.time()
+            futures_fetcher.get_realtime_quotes()
+            futures_fetcher.get_main_contracts()
+            print(f"   ✅ 期货数据缓存预热完成 ({time.time()-start:.2f}s)")
+            
             print("🎉 缓存预热完成！所有数据已就绪")
         except Exception as e:
             print(f"   ⚠️ 缓存预热失败: {e}")
@@ -2173,6 +2465,10 @@ if __name__ == '__main__':
     
     📊 功能列表:
        - 实时行情监控 (GET /api/realtime)
+       - 自选持仓管理 (GET /api/watchlist)
+       - 全部股票分类 (GET /api/stocks/categories)
+       - 港股市场行情 (GET /api/hk/stocks)
+       - 期货市场行情 (GET /api/futures/realtime)
        - 多种选股策略 (GET /api/strategy/<id>)
        - 热门股票排行 (GET /api/hot)
        - 个股详细信息 (GET /api/stock/<code>)

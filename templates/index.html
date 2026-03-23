@@ -918,6 +918,7 @@
             <button class="tab" onclick="switchTab('watchlist')">自选持仓</button>
             <button class="tab" onclick="switchTab('allstocks')">全部股票</button>
             <button class="tab" onclick="switchTab('hk')">港股</button>
+            <button class="tab" onclick="switchTab('futures')">期货市场</button>
             <button class="tab" onclick="switchTab('market')">市场全景</button>
             <button class="tab" onclick="switchTab('board')">板块监控</button>
             <button class="tab" onclick="switchTab('strategies')">选股策略</button>
@@ -1021,6 +1022,9 @@
                         break;
                     case 'hk':
                         await loadHKStocks();
+                        break;
+                    case 'futures':
+                        await loadFuturesData();
                         break;
                     case 'market':
                         await loadMarketOverview();
@@ -1416,6 +1420,224 @@
                 ${stocksHtml}
                 <div class="timestamp">数据更新时间: ${new Date().toLocaleString()}</div>
             `;
+        }
+        
+        // ==================== 期货市场功能 ====================
+        
+        // 当前期货交易所筛选
+        let currentFuturesExchange = '';
+        let currentFuturesCategory = '';
+        
+        // 加载期货数据
+        async function loadFuturesData() {
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">加载期货数据...</div>';
+            
+            try {
+                // 并行获取期货行情、市场统计、排行榜
+                const [realtimeRes, statsRes, topRes] = await Promise.all([
+                    fetch(`/api/futures/realtime?exchange=${currentFuturesExchange}&category=${currentFuturesCategory}`),
+                    fetch('/api/futures/stats'),
+                    fetch('/api/futures/top?type=gainers&n=10')
+                ]);
+                
+                const realtime = await realtimeRes.json();
+                const stats = await statsRes.json();
+                const topGainers = await topRes.json();
+                
+                if (realtime.success) {
+                    renderFuturesData(realtime.data, stats.data, topGainers.data);
+                } else {
+                    throw new Error(realtime.message);
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="no-data">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染期货数据
+        function renderFuturesData(contracts, stats, topGainers) {
+            const content = document.getElementById('content');
+            
+            // 计算涨跌比例
+            const sentimentWidth = stats.total_contracts > 0 
+                ? Math.round((stats.up_count / stats.total_contracts) * 100) 
+                : 50;
+            const upColor = getComputedStyle(document.documentElement).getPropertyValue('--up-color').trim() || '#f5222d';
+            const downColor = getComputedStyle(document.documentElement).getPropertyValue('--down-color').trim() || '#52c41a';
+            const sentimentColor = sentimentWidth >= 50 ? upColor : downColor;
+            
+            let html = `
+                <button class="btn refresh-btn" onclick="loadFuturesData()">刷新数据</button>
+                <h2 style="margin-bottom: 20px;">国内期货市场</h2>
+                
+                <!-- 市场概况卡片 -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                    <div style="background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%); color: white; padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; opacity: 0.9;">合约总数</div>
+                        <div style="font-size: 1.8rem; font-weight: bold;">${stats.total_contracts || 0}</div>
+                    </div>
+                    <div style="background: var(--card-up); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">上涨</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--up-color);">${stats.up_count || 0}</div>
+                    </div>
+                    <div style="background: var(--card-down); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">下跌</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--down-color);">${stats.down_count || 0}</div>
+                    </div>
+                    <div style="background: var(--card-neutral); padding: 20px; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">平盘</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: var(--text-primary);">${stats.flat_count || 0}</div>
+                    </div>
+                </div>
+                
+                <!-- 市场情绪 -->
+                <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 10px; margin-bottom: 25px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="font-weight: 500; color: var(--text-primary);">市场情绪指标</span>
+                        <span style="font-weight: bold; color: ${sentimentColor};">${sentimentWidth}%</span>
+                    </div>
+                    <div style="background: var(--border-color); border-radius: 10px; height: 20px; overflow: hidden;">
+                        <div style="width: ${sentimentWidth}%; height: 100%; background: ${sentimentColor}; border-radius: 10px; transition: width 0.5s;"></div>
+                    </div>
+                </div>
+                
+                <!-- 交易所筛选 -->
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px;">按交易所筛选</h3>
+                    <div class="market-tabs">
+                        <button class="market-tab ${currentFuturesExchange === '' ? 'active' : ''}" onclick="filterFuturesByExchange('')">全部</button>
+                        <button class="market-tab ${currentFuturesExchange === 'shfe' ? 'active' : ''}" onclick="filterFuturesByExchange('shfe')">上期所</button>
+                        <button class="market-tab ${currentFuturesExchange === 'dce' ? 'active' : ''}" onclick="filterFuturesByExchange('dce')">大商所</button>
+                        <button class="market-tab ${currentFuturesExchange === 'czce' ? 'active' : ''}" onclick="filterFuturesByExchange('czce')">郑商所</button>
+                        <button class="market-tab ${currentFuturesExchange === 'cffex' ? 'active' : ''}" onclick="filterFuturesByExchange('cffex')">中金所</button>
+                        <button class="market-tab ${currentFuturesExchange === 'gfex' ? 'active' : ''}" onclick="filterFuturesByExchange('gfex')">广期所</button>
+                        <button class="market-tab ${currentFuturesExchange === 'ine' ? 'active' : ''}" onclick="filterFuturesByExchange('ine')">能源中心</button>
+                    </div>
+                </div>
+                
+                <!-- 品种分类筛选 -->
+                <div style="margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px;">按品种分类</h3>
+                    <div class="market-tabs">
+                        <button class="market-tab ${currentFuturesCategory === '' ? 'active' : ''}" onclick="filterFuturesByCategory('')">全部</button>
+                        <button class="market-tab ${currentFuturesCategory === '有色金属' ? 'active' : ''}" onclick="filterFuturesByCategory('有色金属')">有色金属</button>
+                        <button class="market-tab ${currentFuturesCategory === '贵金属' ? 'active' : ''}" onclick="filterFuturesByCategory('贵金属')">贵金属</button>
+                        <button class="market-tab ${currentFuturesCategory === '黑色系' ? 'active' : ''}" onclick="filterFuturesByCategory('黑色系')">黑色系</button>
+                        <button class="market-tab ${currentFuturesCategory === '能源化工' ? 'active' : ''}" onclick="filterFuturesByCategory('能源化工')">能源化工</button>
+                        <button class="market-tab ${currentFuturesCategory === '农产品' ? 'active' : ''}" onclick="filterFuturesByCategory('农产品')">农产品</button>
+                        <button class="market-tab ${currentFuturesCategory === '金融期货' ? 'active' : ''}" onclick="filterFuturesByCategory('金融期货')">金融期货</button>
+                    </div>
+                </div>
+                
+                <!-- 两栏布局：行情表格 + 排行榜 -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 25px;">
+                    <!-- 期货行情表格 -->
+                    <div>
+                        <h3 style="margin-bottom: 15px;">期货行情</h3>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>合约代码</th>
+                                        <th>合约名称</th>
+                                        <th>交易所</th>
+                                        <th>最新价</th>
+                                        <th>涨跌幅</th>
+                                        <th>成交量</th>
+                                        <th>持仓量</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+            `;
+            
+            // 渲染期货数据
+            contracts.forEach(contract => {
+                const changeClass = (contract.change_pct || 0) >= 0 ? 'change-positive' : 'change-negative';
+                const changeSign = (contract.change_pct || 0) >= 0 ? '+' : '';
+                
+                html += `
+                    <tr>
+                        <td class="stock-code">${contract.symbol || '-'}</td>
+                        <td class="stock-name">${contract.name || '-'}</td>
+                        <td>${contract.exchange_name || contract.exchange || '-'}</td>
+                        <td>${contract.trade ? contract.trade.toFixed(2) : '-'}</td>
+                        <td class="${changeClass}">${contract.change_pct ? changeSign + contract.change_pct.toFixed(2) + '%' : '-'}</td>
+                        <td>${contract.volume ? contract.volume.toLocaleString() : '-'}</td>
+                        <td>${contract.position ? contract.position.toLocaleString() : '-'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧排行榜 -->
+                    <div>
+                        <!-- 涨幅榜 -->
+                        <div style="background: var(--card-up); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 10px; color: var(--up-color);">涨幅TOP10</h4>
+            `;
+            
+            // 涨幅榜
+            topGainers.forEach((contract, index) => {
+                html += `
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <div>
+                            <span style="font-weight: 600; color: var(--up-color);">${index + 1}</span>
+                            <span style="margin-left: 10px;">${contract.name || contract.symbol}</span>
+                        </div>
+                        <span class="change-positive" style="font-weight: 600;">+${(contract.change_pct || 0).toFixed(2)}%</span>
+                    </div>
+                `;
+            });
+            
+            html += `
+                        </div>
+                        
+                        <!-- 各交易所统计 -->
+                        <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 15px;">
+                            <h4 style="margin-bottom: 10px;">交易所统计</h4>
+            `;
+            
+            // 交易所统计
+            (stats.exchange_stats || []).forEach(ex => {
+                html += `
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                        <span>${ex.short_name}</span>
+                        <div>
+                            <span style="color: var(--up-color);">${ex.up_count}</span> / 
+                            <span style="color: var(--down-color);">${ex.down_count}</span>
+                            <span style="margin-left: 10px; color: var(--text-muted);">${ex.contract_count}只</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="timestamp" style="margin-top: 20px;">数据更新时间: ${new Date().toLocaleString('zh-CN')}</div>
+            `;
+            
+            content.innerHTML = html;
+        }
+        
+        // 按交易所筛选期货
+        function filterFuturesByExchange(exchange) {
+            currentFuturesExchange = exchange;
+            loadFuturesData();
+        }
+        
+        // 按品种分类筛选期货
+        function filterFuturesByCategory(category) {
+            currentFuturesCategory = category;
+            loadFuturesData();
         }
         
         // ==================== 指数显示功能 ====================
